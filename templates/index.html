@@ -1,619 +1,129 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Sync Engine Pro | Studio QC</title>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --brand:      #2f6ef5;
-            --brand-dim:  rgba(47,110,245,0.07);
-            --bg:         #eef1f7;
-            --card:       #ffffff;
-            --text:       #0d1526;
-            --muted:      #64748b;
-            --border:     #dde3ec;
-            --danger:     #dc2626;
-            --danger-bg:  #fff5f5;
-            --danger-bd:  #fca5a5;
-            --success:    #059669;
-            --success-bg: #f0fdf9;
-            --success-bd: #6ee7b7;
-            --warn:       #d97706;
-            --warn-bg:    #fffbeb;
-            --warn-bd:    #fcd34d;
-            --mono: 'IBM Plex Mono', monospace;
-            --sans: 'IBM Plex Sans', sans-serif;
-        }
-
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html { font-size: 14px; }
-        body { font-family: var(--sans); background: var(--bg); color: var(--text); padding: 32px 24px; min-height: 100vh; }
-        .page { max-width: 1100px; margin: 0 auto; }
-
-        /* ── TOP BAR ── */
-        .topbar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-        .logo { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; display: flex; align-items: baseline; gap: 6px; }
-        .logo .accent { color: var(--brand); }
-        .logo .ver { font-size: 10px; font-weight: 500; color: var(--muted); font-family: var(--mono); background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
-        .tagline { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: var(--mono); }
-        .top-actions { display: flex; gap: 10px; align-items: center; }
-
-        /* ── PANEL ── */
-        .panel {
-            background: var(--card); border: 1px solid var(--border); border-radius: 14px;
-            padding: 18px 22px; display: flex; align-items: flex-end; gap: 14px;
-            margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); flex-wrap: wrap;
-        }
-        .field { flex: 1; min-width: 200px; }
-        .field-lbl { display: block; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; font-family: var(--mono); }
-        .drop { position: relative; border: 1.5px dashed var(--border); border-radius: 8px; padding: 9px 13px; cursor: pointer; background: var(--bg); transition: border-color .15s, background .15s; overflow: hidden; }
-        .drop:hover { border-color: var(--brand); background: var(--brand-dim); }
-        .drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
-        .drop .fname { font-size: 12px; font-family: var(--mono); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .drop .fname.ph { color: var(--muted); }
-
-        .tog { display: flex; align-items: center; gap: 7px; padding-bottom: 2px; white-space: nowrap; }
-        .tog label { font-size: 13px; font-weight: 600; cursor: pointer; }
-        input[type=checkbox] { accent-color: var(--brand); width: 15px; height: 15px; cursor: pointer; }
-
-        .btn-primary { background: var(--brand); color: #fff; border: none; padding: 10px 24px; border-radius: 8px; font-family: var(--sans); font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap; transition: opacity .15s, transform .1s; }
-        .btn-primary:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
-        .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+@app.route('/download_report/<session_id>', methods=['GET'])
+def download_report(session_id):
+    root = os.path.join(DATA_DIR, session_id)
+    report_path = os.path.join(root, "analysis_results.json")
+    
+    if not os.path.exists(report_path):
+        return jsonify({"error": "Report not found or session expired (cleaned up)."}), 404
         
-        .btn-ghost { background: none; color: var(--muted); border: 1px solid var(--border); padding: 8px 15px; border-radius: 8px; font-family: var(--sans); font-size: 12px; font-weight: 600; cursor: pointer; transition: color .18s, border-color .18s; }
-        .btn-ghost:hover { color: var(--danger); border-color: var(--danger); }
-        
-        .btn-download { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-bd); padding: 8px 15px; border-radius: 8px; font-family: var(--sans); font-size: 12px; font-weight: 700; cursor: pointer; display: none; align-items: center; gap: 6px; transition: background .15s; }
-        .btn-download.on { display: flex; }
-        .btn-download:hover { background: #e6fbf4; }
-
-        /* ── SUMMARY BAR ── */
-        .sum-bar { display: none; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 13px 20px; margin-bottom: 20px; gap: 24px; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
-        .sum-bar.on { display: flex; }
-        .ss .v { font-size: 22px; font-weight: 700; font-family: var(--mono); line-height: 1; }
-        .ss .l { font-size: 9px; font-weight: 700; letter-spacing: 1.3px; color: var(--muted); text-transform: uppercase; margin-top: 2px; font-family: var(--mono); }
-        .ss.ok .v { color: var(--success); }
-        .ss.bad .v { color: var(--danger); }
-        .sd { width: 1px; height: 28px; background: var(--border); }
-
-        /* ── LOADER ── */
-        #loader { display: none; text-align: center; padding: 56px 20px; }
-        #loader.on { display: block; }
-        .spin { width: 38px; height: 38px; border: 3px solid var(--border); border-top-color: var(--brand); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 14px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        #loader .lm { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
-        #loader .ls { font-size: 12px; color: var(--muted); }
-
-        /* ── ERROR ── */
-        .err { display: none; background: var(--danger-bg); border: 1px solid var(--danger-bd); border-radius: 10px; padding: 13px 17px; margin-bottom: 18px; }
-        .err.on { display: block; }
-        .err strong { color: var(--danger); font-size: 13px; }
-        .err pre { margin-top: 7px; font-size: 11px; font-family: var(--mono); color: #7f1d1d; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow-y: auto; }
-
-        /* ── RESULT CARD ── */
-        .rc { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 14px rgba(0,0,0,0.03); }
-        .rc.ec { border-color: var(--danger-bd); background: var(--danger-bg); }
-        .rc-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
-        .rc-head h3 { font-size: 14px; font-weight: 700; font-family: var(--mono); word-break: break-all; }
-        .rc-head .rsub { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
-
-        .badge { padding: 3px 12px; border-radius: 20px; font-weight: 700; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; margin-left: 10px; flex-shrink: 0; font-family: var(--mono); }
-        .bp { background: var(--success-bg); color: #065f46; border: 1px solid var(--success-bd); }
-        .bf { background: var(--danger-bg);  color: #991b1b; border: 1px solid var(--danger-bd); }
-        .be { background: var(--warn-bg);    color: #92400e; border: 1px solid var(--warn-bd); }
-
-        /* ── 5-METRIC GRID ── */
-        .sg { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 14px; }
-        .sb { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 8px; text-align: center; }
-        .sb.al { background: var(--danger-bg); border-color: var(--danger-bd); }
-        .sb.wn { background: var(--warn-bg);   border-color: var(--warn-bd); }
-        .sb-lbl { font-size: 9px; font-weight: 700; letter-spacing: 1.2px; color: var(--muted); text-transform: uppercase; margin-bottom: 7px; font-family: var(--mono); }
-        .sb-val { font-size: 16px; font-weight: 700; font-family: var(--mono); color: var(--text); }
-        .sb.al .sb-val { color: var(--danger); }
-        .sb.wn .sb-val { color: var(--warn); }
-
-        /* ── INFO STRIPS ── */
-        .info-strip { background: #f5f8ff; border: 1px solid #dbeafe; border-radius: 10px; padding: 13px 16px; margin-bottom: 13px; }
-        .strip-title { font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--brand); font-family: var(--mono); margin-bottom: 11px; }
-
-        table.fr { width: 100%; border-collapse: collapse; }
-        table.fr th { font-size: 9px; font-weight: 700; letter-spacing: 1.1px; text-transform: uppercase; color: var(--muted); font-family: var(--mono); padding: 0 0 8px 0; text-align: center; border-bottom: 1px solid #dbeafe; }
-        table.fr th:first-child { text-align: left; }
-        table.fr td { font-size: 13px; font-weight: 700; font-family: var(--mono); color: var(--text); padding: 9px 0 0 0; text-align: center; }
-        table.fr td:first-child { font-size: 11px; font-weight: 500; color: var(--muted); text-align: left; }
-        table.fr td.al { color: var(--danger); }
-        table.fr .unit { font-size: 9px; color: var(--muted); font-weight: 400; }
-
-        .speed-row { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
-        .speed-cell .slbl { font-size: 9px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: var(--brand); font-family: var(--mono); margin-bottom: 4px; }
-        .speed-cell .sval { font-size: 16px; font-weight: 700; font-family: var(--mono); color: var(--text); }
-        .speed-action { flex: 1; text-align: right; font-size: 12px; color: var(--muted); font-style: italic; }
-
-        /* ── META TABLE ── */
-        .meta-wrap { overflow-x: auto; margin-bottom: 14px; }
-        table.mt { width: 100%; border-collapse: collapse; }
-        table.mt th { text-align: left; padding: 7px 10px; background: var(--bg); color: var(--muted); font-weight: 700; font-size: 9px; letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid var(--border); font-family: var(--mono); }
-        table.mt td { padding: 8px 10px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 12px; color: #334155; }
-        table.mt tr.mm td { background: var(--warn-bg); color: #92400e; font-weight: 600; }
-        table.mt tr:last-child td { border-bottom: none; }
-
-        /* ── WAVEFORM ── */
-        .wave-wrap { border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
-        .wave-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; background: var(--bg); border-bottom: 1px solid var(--border); }
-        .wave-title { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; font-family: var(--mono); color: var(--muted); }
-        .wave-title strong { color: var(--text); }
-        .wave-tabs { display: flex; gap: 4px; }
-        .wave-tab { font-size: 10px; font-weight: 700; font-family: var(--mono); padding: 3px 10px; border-radius: 5px; cursor: pointer; border: 1px solid var(--border); background: var(--card); color: var(--muted); transition: all .15s; letter-spacing: 0.5px; }
-        .wave-tab.active { background: var(--brand); color: #fff; border-color: var(--brand); }
-        .wave-tab:hover:not(.active) { border-color: var(--brand); color: var(--brand); }
-        .wave-box  { width: 100%; height: 190px; background: #f8fafc; }
-        .wave-foot { display: flex; gap: 16px; align-items: center; padding: 6px 14px; background: #f1f5f9; border-top: 1px solid var(--border); flex-wrap: wrap; }
-        .wl { display: flex; align-items: center; gap: 7px; font-size: 11px; font-family: var(--mono); color: var(--muted); }
-        .wd { width: 20px; height: 2px; border-radius: 1px; }
-        .wave-desc { font-size: 10px; color: var(--muted); font-family: var(--mono); font-style: italic; }
-
-        @media (max-width: 720px) {
-            .panel { flex-direction: column; align-items: stretch; }
-            .sg { grid-template-columns: repeat(2, 1fr); }
-        }
-    </style>
-</head>
-<body>
-<div class="page">
-
-    <div class="topbar">
-        <div>
-            <div class="logo">🎧 Sync Engine <span class="accent">Pro</span> <span class="ver">v6</span></div>
-            <div class="tagline">Temporal offset · Drift · Speed factor · Onset DNA · True Peak · Phase · Frame rates</div>
-        </div>
-        <div class="top-actions">
-            <button class="btn-download" id="topDlBtn" onclick="downloadReport()">📊 Download JSON Report</button>
-            <button class="btn-ghost" onclick="wipeCache()">Clear Cache</button>
-        </div>
-    </div>
-
-    <div class="panel">
-        <div class="field">
-            <span class="field-lbl">Master Reference</span>
-            <div class="drop">
-                <div class="fname ph" id="refName">Choose master file…</div>
-                <input type="file" id="refFile" accept="audio/*" onchange="onPick('refFile','refName',false)">
-            </div>
-        </div>
-        <div class="field">
-            <span class="field-lbl">Dub Files</span>
-            <div class="drop">
-                <div class="fname ph" id="compName">Choose dub files…</div>
-                <input type="file" id="compFiles" multiple accept="audio/*" onchange="onPick('compFiles','compName',true)">
-            </div>
-        </div>
-        <div class="tog">
-            <input type="checkbox" id="vocalDna" checked>
-            <label for="vocalDna" title="HPSS percussive separation + 300–3400Hz bandpass. Isolates speech transients for more accurate onset DNA scoring.">Vocal DNA Filter</label>
-        </div>
-        <button class="btn-primary" id="runBtn" onclick="runQC()">Run QC Engine</button>
-    </div>
-
-    <div class="sum-bar" id="sumBar">
-        <div class="ss"><div class="v" id="sumTotal">—</div><div class="l">Processed</div></div>
-        <div class="sd"></div>
-        <div class="ss ok"><div class="v" id="sumPass">—</div><div class="l">Passed</div></div>
-        <div class="sd"></div>
-        <div class="ss bad"><div class="v" id="sumFail">—</div><div class="l">Failed / Error</div></div>
-    </div>
-
-    <div id="loader">
-        <div class="spin"></div>
-        <div class="lm" id="loadMsg">Running QC Engine…</div>
-        <div class="ls">Analyzing onset DNA, drift &amp; levels. Large files may take a moment.</div>
-    </div>
-
-    <div class="err" id="errBanner">
-        <strong>⚠ Analysis Failed</strong>
-        <pre id="errDetail"></pre>
-    </div>
-
-    <div id="results"></div>
-</div>
-
-<script>
-    let currentRawData = null;
-    const _charts = {};
-
-    function x(str) {
-        if (str === null || str === undefined) return '';
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-    }
-
-    function onPick(iId, lId, multi) {
-        const f = document.getElementById(iId).files;
-        const el = document.getElementById(lId);
-        if (!f.length) { el.textContent = 'Choose file…'; el.classList.add('ph'); return; }
-        el.classList.remove('ph');
-        el.textContent = (multi && f.length > 1) ? `${f.length} files selected` : f[0].name;
-    }
-
-    async function wipeCache() {
-        if (!confirm('Clear all session data from the server?')) return;
-        await fetch('/wipe', { method: 'POST' });
-        location.reload();
-    }
-
-    function setLoading(on, msg = 'Running QC Engine…') {
-        document.getElementById('loader').classList.toggle('on', on);
-        document.getElementById('loadMsg').textContent = msg;
-        document.getElementById('runBtn').disabled = on;
-        document.getElementById('errBanner').classList.remove('on');
-        if (on) document.getElementById('topDlBtn').classList.remove('on');
-    }
-
-    function showError(detail) {
-        document.getElementById('errBanner').classList.add('on');
-        document.getElementById('errDetail').textContent = detail;
-        setLoading(false);
-    }
-
-    async function runQC() {
-        const ref   = document.getElementById('refFile').files[0];
-        const comps = document.getElementById('compFiles').files;
-        if (!ref)          { alert('Please select a master reference file.'); return; }
-        if (!comps.length) { alert('Please select at least one dub file.'); return; }
-
-        document.getElementById('results').innerHTML = '';
-        document.getElementById('sumBar').classList.remove('on');
-        setLoading(true, `Analyzing ${comps.length} file${comps.length > 1 ? 's' : ''}…`);
-
-        const fd = new FormData();
-        fd.append('reference', ref);
-        for (const f of comps) fd.append('comparison[]', f);
-        fd.append('vocal_logic', document.getElementById('vocalDna').checked);
-
-        try {
-            const res = await fetch('/upload', { method: 'POST', body: fd });
-            currentRawData = await res.json();
-            if (!res.ok || currentRawData.error) { showError(currentRawData.error || 'Unknown server error'); return; }
-        } catch(e) { showError(`Network error: ${e.message}`); return; }
-
-        setLoading(false);
-        renderAll(currentRawData);
-    }
-
-    function downloadReport() {
-        if (!currentRawData) return;
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentRawData, null, 2));
-        const dlAnchor = document.createElement('a');
-        dlAnchor.setAttribute("href", dataStr);
-        dlAnchor.setAttribute("download", `sync_qc_report_${Date.now()}.json`);
-        document.body.appendChild(dlAnchor);
-        dlAnchor.click();
-        dlAnchor.remove();
-    }
-
-    function renderAll(data) {
-        const results = data.results || [];
-        const passed  = results.filter(r => r.status === 'PASS').length;
-        document.getElementById('sumTotal').textContent = results.length;
-        document.getElementById('sumPass').textContent  = passed;
-        document.getElementById('sumFail').textContent  = results.length - passed;
-        document.getElementById('sumBar').classList.add('on');
-        
-        // Show download button at top bar permanently once data is loaded
-        if (results.length > 0) {
-            document.getElementById('topDlBtn').classList.add('on');
-        }
-
-        const container = document.getElementById('results');
-        container.innerHTML = '';
-        results.forEach((r, i) => renderCard(r, i, container));
-    }
-
-    function renderCard(r, i, container) {
-        const div = document.createElement('div');
-
-        if (r.error) {
-            div.className = 'rc ec';
-            div.innerHTML = `
-                <div class="rc-head">
-                    <div><h3>${x(r.filename)}</h3><div class="rsub" style="color:var(--danger)">Processing failed</div></div>
-                    <span class="badge be">ERROR</span>
-                </div>
-                <pre style="font-size:12px;color:#7f1d1d;white-space:pre-wrap;font-family:var(--mono)">${x(r.reason)}</pre>`;
-            container.appendChild(div);
-            return;
-        }
-
-        const isPass  = r.status === 'PASS';
-        const offAl   = Math.abs(r.offset_ms)      > 80;
-        const driftAl = Math.abs(r.total_drift_ms) > 150;
-        const dnaAl   = r.dna_match < 80;
-        const sf      = r.speed_factor  || {};
-        const lv      = r.levels        || {};
-        const of      = r.offset_frames || {};
-        const df      = r.drift_frames  || {};
-
-        const sfDelta = parseFloat(sf.delta) || 0;
-        const sfClass = Math.abs(sfDelta) > 0.05 ? 'wn' : '';
-
-        const fv = (val, threshold) => {
-            const n = Math.abs(parseFloat(val) || 0);
-            return `<span class="${n > threshold ? 'al' : ''}">${val ?? '—'}</span>`;
-        };
-
-        div.className = 'rc';
-        div.innerHTML = `
-            <div class="rc-head">
-                <div>
-                    <h3>${x(r.filename)}</h3>
-                    <div class="rsub">${x(r.reason)}</div>
-                </div>
-                <span class="badge ${isPass ? 'bp' : 'bf'}">${r.status}</span>
-            </div>
-
-            <div class="sg">
-                <div class="sb ${offAl ? 'al' : ''}">
-                    <div class="sb-lbl">Start Offset</div>
-                    <div class="sb-val">${r.offset_ms}ms</div>
-                </div>
-                <div class="sb ${driftAl ? 'al' : ''}">
-                    <div class="sb-lbl">Total Drift</div>
-                    <div class="sb-val">${r.total_drift_ms}ms</div>
-                </div>
-                <div class="sb ${dnaAl ? 'al' : ''}">
-                    <div class="sb-lbl">Onset DNA${r.vocal_filter ? ' <span style="color:var(--brand);font-size:8px">▲ HPSS</span>' : ''}</div>
-                    <div class="sb-val">${r.dna_match}%</div>
-                </div>
-                <div class="sb">
-                    <div class="sb-lbl">Phase Health</div>
-                    <div class="sb-val" style="font-size:12px">${x(r.phase)}</div>
-                </div>
-                <div class="sb ${sfClass}">
-                    <div class="sb-lbl">Speed Factor</div>
-                    <div class="sb-val" style="font-size:13px">${x(sf.display || 'N/A')}</div>
-                </div>
-            </div>
-
-            <div class="info-strip">
-                <div class="strip-title">⏱ Timing in Frames</div>
-                <table class="fr">
-                    <thead>
-                        <tr>
-                            <th>Metric</th>
-                            <th>23.976 fps<br><span class="unit">Film / Netflix</span></th>
-                            <th>25 fps<br><span class="unit">PAL / EBU</span></th>
-                            <th>29.97 fps<br><span class="unit">NTSC</span></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Start Offset<br><span class="unit">${r.offset_ms}ms</span></td>
-                            <td>${fv(of['23.976'], 2)} <span class="unit">fr</span></td>
-                            <td>${fv(of['25'],     2)} <span class="unit">fr</span></td>
-                            <td>${fv(of['29.97'],  2)} <span class="unit">fr</span></td>
-                        </tr>
-                        <tr>
-                            <td>Total Drift<br><span class="unit">${r.total_drift_ms}ms</span></td>
-                            <td>${fv(df['23.976'], 3)} <span class="unit">fr</span></td>
-                            <td>${fv(df['25'],     3)} <span class="unit">fr</span></td>
-                            <td>${fv(df['29.97'],  3)} <span class="unit">fr</span></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="info-strip">
-                <div class="strip-title">⚙ Clock Speed Analysis</div>
-                <div class="speed-row">
-                    <div class="speed-cell">
-                        <div class="slbl">Clock Ratio</div>
-                        <div class="sval">${x(sf.display || 'N/A')}</div>
-                    </div>
-                    <div class="speed-cell">
-                        <div class="slbl">Δ Speed</div>
-                        <div class="sval" style="color:${Math.abs(sfDelta)>0.05?'var(--warn)':'var(--text)'}">${x(sf.delta || 'N/A')}</div>
-                    </div>
-                    <div class="speed-action">${x(sf.action || '')}</div>
-                </div>
-            </div>
-
-            <div class="meta-wrap">
-                <table class="mt">
-                    <thead><tr><th>Property</th><th>Master Reference</th><th>Comparison Dub</th></tr></thead>
-                    <tbody>
-                        <tr><td>Sample Rate</td><td>${x(r.ref_meta?.sr)}</td><td>${x(r.comp_meta?.sr)}</td></tr>
-                        <tr><td>Duration</td><td>${x(r.ref_meta?.duration)}</td><td>${x(r.comp_meta?.duration)}</td></tr>
-                        <tr class="${r.chan_mismatch ? 'mm' : ''}">
-                            <td>Channels${r.chan_mismatch ? ' ⚠' : ''}</td>
-                            <td>${x(r.ref_meta?.channel_label)}</td>
-                            <td>${x(r.comp_meta?.channel_label)}</td>
-                        </tr>
-                        <tr><td>Bit Depth / Format</td><td>${x(r.ref_meta?.bit_depth)}</td><td>${x(r.comp_meta?.bit_depth)}</td></tr>
-                        <tr><td>Integrated Loudness</td><td>—</td><td>${x(lv.lufs)}</td></tr>
-                        <tr><td>Sample Peak</td><td>—</td><td>${x(lv.peak)}</td></tr>
-                        <tr>
-                            <td>True Peak (dBTP)
-                                <span style="font-size:9px;color:var(--muted);font-family:var(--mono);display:block">EBU R128 / ITU-R BS.1770</span>
-                            </td>
-                            <td>—</td>
-                            <td>${x(lv.true_peak)}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="wave-wrap">
-                <div class="wave-head">
-                    <div class="wave-title">
-                        <strong>Waveform Comparison</strong>
-                        &nbsp;·&nbsp; Mirrored dual-track · First 60s
-                        ${r.vocal_filter ? ' &nbsp;·&nbsp; HPSS filtered' : ''}
-                    </div>
-                    <div class="wave-tabs">
-                        <button class="wave-tab active" id="tab-rms-${i}" onclick="switchWave(${i},'rms')">RMS Envelope</button>
-                        <button class="wave-tab"        id="tab-raw-${i}" onclick="switchWave(${i},'raw')">Raw Waveform</button>
-                    </div>
-                </div>
-                <div class="wave-box" id="wv-${i}"></div>
-                <div class="wave-foot">
-                    <div class="wl"><div class="wd" style="background:#3b82f6"></div>Master (above axis)</div>
-                    <div class="wl"><div class="wd" style="background:#f59e0b"></div>Dub (below axis)</div>
-                    <div class="wave-desc" id="wv-desc-${i}">
-                        Smoothed energy envelope — comparable across languages, shows structural sync
-                    </div>
-                </div>
-            </div>
-        `;
-
-        container.appendChild(div);
-        const wvEl = document.getElementById(`wv-${i}`);
-        wvEl._data = {
-            rms: { master: r.wave_rms_master, dub: r.wave_rms_dub },
-            raw: { master: r.wave_raw_master, dub: r.wave_raw_dub }
-        };
-        renderWave(i, r.wave_rms_master, r.wave_rms_dub, 'rms');
-    }
-
-    function switchWave(i, mode) {
-        const el   = document.getElementById(`wv-${i}`);
-        const desc = document.getElementById(`wv-desc-${i}`);
-        if (!el?._data) return;
-
-        document.getElementById(`tab-rms-${i}`).classList.toggle('active', mode === 'rms');
-        document.getElementById(`tab-raw-${i}`).classList.toggle('active', mode === 'raw');
-
-        const d = el._data[mode];
-        if (desc) {
-            desc.textContent = mode === 'rms'
-                ? 'Smoothed energy envelope — comparable across languages, shows structural sync'
-                : 'Raw audio samples (abs-normalised) — acoustic detail, compare transient shapes';
-        }
-
-        const label = mode === 'rms' ? 'RMS energy' : 'Raw amplitude';
-        const chart = _charts[i];
-        if (!chart) { renderWave(i, d.master, d.dub, mode); return; }
-
-        chart.setOption({
-            series: [
-                { name: '_zero', data: new Array(Math.min(d.master.length, d.dub.length)).fill(0) },
-                { name: 'Master', data: d.master },
-                { name: 'Dub',    data: d.dub }
-            ]
-        });
-        chart._waveMode = label;
-    }
-
-    function renderWave(i, waveM, waveD, mode) {
-        const el = document.getElementById(`wv-${i}`);
-        if (!el || !waveM?.length || !waveD?.length) return;
-
-        const chart = echarts.init(el, null, { renderer: 'canvas' });
-        _charts[i]  = chart;
-        chart._waveMode = mode === 'rms' ? 'RMS energy' : 'Raw amplitude';
-
-        chart.setOption({
-            backgroundColor: '#f8fafc',
-            animation: false,
-            grid: { top: 14, bottom: 14, left: 46, right: 16 },
-            xAxis: {
-                type: 'category',
-                boundaryGap: false,
-                axisLine: { lineStyle: { color: '#e2e8f0' } },
-                axisTick: { show: false },
-                axisLabel: { show: false },
-                splitLine: { show: false }
-            },
-            yAxis: {
-                type: 'value',
-                min: -1.1, max: 1.1, interval: 0.5,
-                axisLine: { show: false },
-                axisTick: { show: false },
-                axisLabel: {
-                    color: '#94a3b8', fontSize: 9, fontFamily: 'IBM Plex Mono',
-                    formatter: v => v === 0 ? '0' : v.toFixed(1)
-                },
-                splitLine: { show: true, lineStyle: { color: '#e8edf4', type: 'dashed', width: 1 } }
-            },
-            series: [
-                {
-                    name: '_zero', type: 'line',
-                    data: new Array(Math.min(waveM.length, waveD.length)).fill(0),
-                    symbol: 'none',
-                    lineStyle: { color: '#cbd5e1', width: 1.5, type: 'solid' },
-                    z: 1, silent: true, legendHoverLink: false
-                },
-                {
-                    name: 'Master', type: 'line', data: waveM,
-                    symbol: 'none',
-                    lineStyle: { color: '#3b82f6', width: 1.2, opacity: 0.95 },
-                    areaStyle: {
-                        origin: 0,
-                        color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                            colorStops: [
-                                { offset: 0, color: 'rgba(59,130,246,0.35)' },
-                                { offset: 1, color: 'rgba(59,130,246,0.03)' }
-                            ]
-                        }
-                    },
-                    large: true, largeThreshold: 500, z: 2
-                },
-                {
-                    name: 'Dub', type: 'line', data: waveD,
-                    symbol: 'none',
-                    lineStyle: { color: '#f59e0b', width: 1.2, opacity: 0.95 },
-                    areaStyle: {
-                        origin: 0,
-                        color: { type: 'linear', x: 0, y: 1, x2: 0, y2: 0,
-                            colorStops: [
-                                { offset: 0, color: 'rgba(245,158,11,0.35)' },
-                                { offset: 1, color: 'rgba(245,158,11,0.03)' }
-                            ]
-                        }
-                    },
-                    large: true, largeThreshold: 500, z: 2
-                }
-            ],
-            legend: { show: false },
-            tooltip: {
-                trigger: 'axis',
-                backgroundColor: '#1e293b',
-                borderColor: '#334155',
-                padding: [8, 12],
-                textStyle: { color: '#cbd5e1', fontSize: 11, fontFamily: 'IBM Plex Mono' },
-                axisPointer: { lineStyle: { color: '#475569', width: 1 } },
-                formatter: params => {
-                    const mS = params.find(p => p.seriesName === 'Master');
-                    const dS = params.find(p => p.seriesName === 'Dub');
-                    const m  = mS?.value ?? 0;
-                    const d  = dS?.value ? Math.abs(dS.value) : 0;
-                    const lbl = chart._waveMode || 'Value';
-                    return `
-                        <div style="font-weight:600;color:#fff;margin-bottom:4px;">Sample Index: ${mS?.dataIndex ?? ''}</div>
-                        <div style="display:flex;justify-content:space-between;gap:16px;">
-                            <span><span style="color:#3b82f6">●</span> Master ${lbl}:</span>
-                            <span style="font-weight:600;margin-left:auto">${m.toFixed(3)}</span>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;gap:16px;margin-top:2px;">
-                            <span><span style="color:#f59e0b">●</span> Dub ${lbl}:</span>
-                            <span style="font-weight:600;margin-left:auto">${d.toFixed(3)}</span>
-                        </div>
-                        <div style="border-top:1px solid #334155;margin-top:6px;padding-top:4px;font-size:10px;color:#94a3b8">
-                            Δ Variance: ${Math.abs(m - d).toFixed(3)}
-                        </div>
-                    `;
-                }
+    with open(report_path, 'r', encoding='utf-8') as f:
+        results = json.load(f)
+    
+    # Build HTML content
+    html_parts = ["""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Audio Sync Analysis Report</title>
+        <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 900px; margin: 0 auto; padding: 20px; }
+            .header { text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 15px; margin-bottom: 30px; }
+            .header h1 { margin: 0; color: #1e3a8a; }
+            .header p { color: #6b7280; margin: 5px 0 0; }
+            .file-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 25px; page-break-inside: avoid; }
+            .file-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px; margin-bottom: 15px; }
+            .filename { font-size: 1.2em; font-weight: bold; color: #111827; }
+            .badge { padding: 4px 12px; border-radius: 999px; font-weight: bold; font-size: 0.9em; }
+            .badge-pass { background-color: #d1fae5; color: #065f46; }
+            .badge-fail { background-color: #fee2e2; color: #991b1b; }
+            .badge-error { background-color: #fef3c7; color: #92400e; }
+            .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
+            .metric { background: #f9fafb; padding: 10px; border-radius: 6px; text-align: center; }
+            .metric-label { font-size: 0.8em; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; }
+            .metric-value { font-size: 1.1em; font-weight: bold; color: #111827; margin-top: 4px; }
+            .reason-box { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 10px 15px; margin-bottom: 20px; font-size: 0.95em; }
+            .plot-container { text-align: center; margin-top: 15px; }
+            .plot-container img { max-width: 100%; height: auto; border: 1px solid #e5e7eb; border-radius: 6px; }
+            .no-plot { color: #9ca3af; font-style: italic; padding: 20px; background: #f9fafb; border-radius: 6px; }
+            .print-btn { display: block; width: 200px; margin: 30px auto; padding: 12px; background: #2563eb; color: white; border: none; border-radius: 6px; font-size: 1em; font-weight: bold; cursor: pointer; text-align: center; }
+            .print-btn:hover { background: #1d4ed8; }
+            
+            @media print {
+                .print-btn { display: none !important; }
+                body { padding: 0; max-width: 100%; }
+                .file-card { break-inside: avoid; border: 1px solid #ccc; }
             }
-        });
-    }
+        </style>
+    </head>
+    <body>
+        <button class="print-btn" onclick="window.print()">🖨️ Save as PDF / Print</button>
+        <div class="header">
+            <h1>Audio Synchronization Analysis Report</h1>
+            <p>Session ID: <strong>""" + session_id + """</strong> | Generated: """ + time.strftime("%Y-%m-%d %H:%M:%S") + """</p>
+        </div>
+    """]
+    
+    for res in results:
+        status_class = "badge-pass" if res.get("status") == "PASS" else ("badge-error" if res.get("error") else "badge-fail")
+        
+        # Generate plot if data exists and matplotlib is available
+        plot_img_tag = '<div class="no-plot">Graph generation unavailable (install matplotlib) or data missing.</div>'
+        if MATPLOTLIB_AVAILABLE and "wave_rms_master" in res:
+            img_b64 = generate_waveform_plot_base64(
+                res["wave_rms_master"], res["wave_rms_dub"], 
+                res["wave_raw_master"], res["wave_raw_dub"]
+            )
+            if img_b64:
+                plot_img_tag = f'<img src="data:image/png;base64,{img_b64}" alt="Waveform Analysis">'
+        
+        html_parts.append(f"""
+        <div class="file-card">
+            <div class="file-header">
+                <span class="filename">📄 {res.get('filename', 'Unknown')}</span>
+                <span class="badge {status_class}">{res.get('status', 'UNKNOWN')}</span>
+            </div>
+            
+            <div class="reason-box">
+                <strong>Insight:</strong> {res.get('reason', 'No details available')}
+            </div>
+            
+            <div class="metrics-grid">
+                <div class="metric">
+                    <div class="metric-label">DNA Match</div>
+                    <div class="metric-value">{res.get('dna_match', 'N/A')}%</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Start Offset</div>
+                    <div class="metric-value">{res.get('offset_ms', 'N/A')} ms</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Total Drift</div>
+                    <div class="metric-value">{res.get('total_drift_ms', 'N/A')} ms</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Speed Action</div>
+                    <div class="metric-value" style="font-size:0.9em">{res.get('speed_factor', {}).get('action', 'N/A')}</div>
+                </div>
+            </div>
 
-    window.addEventListener('resize', () => {
-        Object.values(_charts).forEach(chart => { if (chart) chart.resize(); });
-    });
-</script>
-</body>
-</html>
+            <div class="metrics-grid" style="grid-template-columns: 1fr 1fr;">
+                <div class="metric">
+                    <div class="metric-label">Master Levels</div>
+                    <div class="metric-value" style="font-size:0.85em">
+                        LUFS: {res.get('ref_meta', {}).get('levels', {}).get('lufs', 'N/A')}<br>
+                        Peak: {res.get('ref_meta', {}).get('levels', {}).get('peak', 'N/A')}
+                    </div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Dub Levels</div>
+                    <div class="metric-value" style="font-size:0.85em">
+                        LUFS: {res.get('levels', {}).get('lufs', 'N/A')}<br>
+                        Peak: {res.get('levels', {}).get('peak', 'N/A')}
+                    </div>
+                </div>
+            </div>
+
+            <div class="plot-container">
+                {plot_img_tag}
+            </div>
+        </div>
+        """)
+        
+    html_parts.append("""
+        <button class="print-btn" onclick="window.print()">🖨️ Save as PDF / Print</button>
+    </body>
+    </html>
+    """)
+    
+    return "".join(html_parts), 200, {'Content-Type': 'text/html'}
