@@ -18,14 +18,14 @@ from flask import Flask, request, jsonify, render_template
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1 GB
 
-# ── CONFIGURATION ──────────────────────────────────────────────────────────────
+# ─ CONFIGURATION ──────────────────────────────────────────────────────────────
 BASE_DIR        = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR        = os.path.join(BASE_DIR, "data")
 os.makedirs(DATA_DIR, exist_ok=True)
 
 PERFORMANCE_SR      = 22050
 WAVEFORM_MAX_POINTS = 2000
-SEGMENT_DURATION    = 60       # seconds analysed at start/end of each file
+SEGMENT_DURATION    = 60
 MAX_WORKERS         = 4
 ALLOWED_EXTENSIONS  = {'.wav', '.mp3', '.flac', '.aac', '.ogg', '.m4a', '.aiff', '.aif', '.opus'}
 
@@ -55,19 +55,12 @@ threading.Thread(target=_cleanup_worker, daemon=True).start()
 def allowed_file(filename: str) -> bool:
     return os.path.splitext(filename.lower())[1] in ALLOWED_EXTENSIONS
 
-def butter_bandpass(data, lowcut, highcut, fs, order=2):
-    nyq  = 0.5 * fs
-    b, a = butter(order, [lowcut / nyq, highcut / nyq], btype='band')
-    return lfilter(b, a, data)
-
 def apply_vocal_filter(y: np.ndarray) -> np.ndarray:
-    """Vocal DNA Filter — isolates percussive transient signatures."""
     try:
         _, y_perc = librosa.effects.hpss(y)
     except Exception:
-        y_perc = y  # Fallback if HPSS fails
-        
-    nyq  = 0.5 * PERFORMANCE_SR
+        y_perc = y
+    nyq = 0.5 * PERFORMANCE_SR
     b, a = butter(2, [300 / nyq, 3400 / nyq], btype='band')
     return lfilter(b, a, y_perc)
 
@@ -83,7 +76,6 @@ def normalize_visual(y):
     return y / m if m > 0 else y
 
 def rms_envelope(y, target_pts=2000):
-    """Compute smoothed energy curve resampled to fixed coordinates."""
     rms = librosa.feature.rms(y=y, hop_length=64)[0].astype(np.float64)
     if len(rms) != target_pts and len(rms) > 1:
         rms = resample_poly(rms, up=target_pts, down=len(rms)).astype(np.float64)
@@ -94,10 +86,10 @@ def rms_envelope(y, target_pts=2000):
 def downsample_waveform(y, max_pts=WAVEFORM_MAX_POINTS):
     if len(y) <= max_pts:
         return y.tolist()
-    step    = len(y) // max_pts
+    step = len(y) // max_pts
     buckets = len(y) // step
     trimmed = y[:buckets * step].reshape(buckets, step)
-    idx     = np.argmax(np.abs(trimmed), axis=1)
+    idx = np.argmax(np.abs(trimmed), axis=1)
     return trimmed[np.arange(buckets), idx].tolist()
 
 def ms_to_frames(ms: float) -> dict:
@@ -109,25 +101,20 @@ def get_file_metadata(path):
     try:
         info = sf.info(path)
         return {
-            "sr":            info.samplerate,
-            "duration_sec":  info.duration,
+            "sr": info.samplerate,
+            "duration_sec": info.duration,
             "channel_label": ("Stereo" if info.channels == 2 
                              else "Mono" if info.channels == 1 
                              else f"{info.channels} Ch"),
-            "format":        info.format,
+            "format": info.format,
         }
     except Exception:
         return {"sr": 0, "duration_sec": 0, "channel_label": "N/A", "format": "N/A"}
 
 def true_peak_db(data: np.ndarray, rate: int) -> float:
     try:
-        tp = pyln.meter.true_peak(data, rate)
-        return float(20 * np.log10(np.max(np.abs(tp)) + 1e-10))
-    except Exception:
-        pass
-    try:
         mono = np.mean(data, axis=1) if data.ndim > 1 else data
-        up   = resample_poly(mono, up=4, down=1)
+        up = resample_poly(mono, up=4, down=1)
         return float(20 * np.log10(np.max(np.abs(up)) + 1e-10))
     except Exception:
         return 0.0
@@ -135,13 +122,13 @@ def true_peak_db(data: np.ndarray, rate: int) -> float:
 def scan_levels(path):
     try:
         data, rate = sf.read(path)
-        mono       = np.mean(data, axis=1) if data.ndim > 1 else data
+        mono = np.mean(data, axis=1) if data.ndim > 1 else data
         sample_peak = float(20 * np.log10(np.max(np.abs(mono)) + 1e-10))
-        meter    = pyln.Meter(rate)
+        meter = pyln.Meter(rate)
         lufs_val = float(meter.integrated_loudness(data))
         return {
-            "lufs":      lufs_val,
-            "peak":      sample_peak,
+            "lufs": lufs_val,
+            "peak": sample_peak,
             "true_peak": true_peak_db(data, rate),
         }
     except Exception:
@@ -152,8 +139,8 @@ def calculate_phase(path):
         data, _ = sf.read(path)
         if data.ndim < 2 or data.shape[1] < 2:
             return "1.0 (Mono)"
-        corr   = np.corrcoef(data[:, 0], data[:, 1])[0, 1]
-        status = "Healthy" if corr > 0.4 else "🚩 Issue"
+        corr = np.corrcoef(data[:, 0], data[:, 1])[0, 1]
+        status = "Healthy" if corr > 0.4 else "Issue"
         return f"{round(float(corr), 2)} ({status})"
     except Exception:
         return "N/A"
@@ -164,30 +151,30 @@ def load_segment(path, sr, offset=0.0, duration=None):
 # ── CORE ANALYSIS ──────────────────────────────────────────────────────────────
 def analyze_segment(y_ref, y_comp, sr):
     hop = 512
-    ref_rms  = librosa.feature.rms(y=y_ref,  hop_length=hop)[0].astype(np.float64)
+    ref_rms = librosa.feature.rms(y=y_ref, hop_length=hop)[0].astype(np.float64)
     comp_rms = librosa.feature.rms(y=y_comp, hop_length=hop)[0].astype(np.float64)
 
-    ref_rms  = (ref_rms  - ref_rms.min())  / (ref_rms.max()  - ref_rms.min()  + 1e-10)
+    ref_rms = (ref_rms - ref_rms.min()) / (ref_rms.max() - ref_rms.min() + 1e-10)
     comp_rms = (comp_rms - comp_rms.min()) / (comp_rms.max() - comp_rms.min() + 1e-10)
 
-    corr      = signal.correlate(comp_rms, ref_rms, mode='full')
-    lag       = np.argmax(corr) - (len(ref_rms) - 1)
+    corr = signal.correlate(comp_rms, ref_rms, mode='full')
+    lag = np.argmax(corr) - (len(ref_rms) - 1)
     offset_ms = round(float(lag * hop / sr * 1000), 2)
 
-    WIN_SEC    = 10
+    WIN_SEC = 10
     WIN_FRAMES = int(WIN_SEC * sr / hop)
 
-    ref_onset  = librosa.onset.onset_strength(y=y_ref,  sr=sr, hop_length=hop)
+    ref_onset = librosa.onset.onset_strength(y=y_ref, sr=sr, hop_length=hop)
     comp_onset = librosa.onset.onset_strength(y=y_comp, sr=sr, hop_length=hop)
 
-    min_len    = min(len(ref_onset), len(comp_onset))
+    min_len = min(len(ref_onset), len(comp_onset))
     if min_len == 0:
         return offset_ms, 0.0
         
-    ref_onset  = ref_onset[:min_len]
+    ref_onset = ref_onset[:min_len]
     comp_onset = comp_onset[:min_len]
 
-    n_windows  = max(1, min_len // WIN_FRAMES)
+    n_windows = max(1, min_len // WIN_FRAMES)
     window_scores = []
 
     for w in range(n_windows):
@@ -196,8 +183,8 @@ def analyze_segment(y_ref, y_comp, sr):
         r_win = ref_onset[s:e].astype(np.float64)
         c_win = comp_onset[s:e].astype(np.float64)
 
-        r_norm = r_win  / (np.linalg.norm(r_win)  + 1e-10)
-        c_norm = c_win  / (np.linalg.norm(c_win)  + 1e-10)
+        r_norm = r_win / (np.linalg.norm(r_win) + 1e-10)
+        c_norm = c_win / (np.linalg.norm(c_win) + 1e-10)
 
         xcorr = signal.correlate(r_norm, c_norm, mode='same')
         window_scores.append(float(np.max(xcorr)) if len(xcorr) > 0 else 0.0)
@@ -220,23 +207,20 @@ def determine_status(offset_ms, drift_ms, dna_score):
 # ── PER-FILE WORKER ────────────────────────────────────────────────────────────
 def process_file(f, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw, 
                  ref_meta, ref_levels, vocal_logic):
-    """
-    Process a single comparison file and return results in frontend-expected format.
-    """
     if not f or not f.filename:
         return None
 
     if not allowed_file(f.filename):
         return {"filename": f.filename, "verdict": "FAIL", 
-                "verdict_reason": f"Unsupported type.", "error": True}
+                "verdict_reason": "Unsupported file type", "error": True}
     
     try:
-        f_path    = os.path.join(root, secure_filename(f.filename))
+        f_path = os.path.join(root, secure_filename(f.filename))
         f.save(f_path)
         
         comp_meta = get_file_metadata(f_path)
         comp_levels = scan_levels(f_path)
-        comp_dur  = comp_meta["duration_sec"]
+        comp_dur = comp_meta["duration_sec"]
 
         y_c_s, _ = load_segment(f_path, PERFORMANCE_SR, duration=SEGMENT_DURATION)
         y_c_e, _ = load_segment(f_path, PERFORMANCE_SR, 
@@ -252,48 +236,45 @@ def process_file(f, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw,
             y_c_e_an = y_c_e
 
         s_off, dna = analyze_segment(y_ref_s_an, y_c_s_an, PERFORMANCE_SR)
-        e_off, _   = analyze_segment(y_ref_e_an, y_c_e_an, PERFORMANCE_SR)
-        drift      = round(e_off - s_off, 2)
+        e_off, _ = analyze_segment(y_ref_e_an, y_c_e_an, PERFORMANCE_SR)
+        drift = round(e_off - s_off, 2)
 
-        # Compute speed factor
         drift_sec = drift / 1000.0
         speed_val = float(comp_dur / (comp_dur + drift_sec + 1e-10))
 
         status, reason = determine_status(s_off, drift, dna)
 
+        # EXACT JSON STRUCTURE EXPECTED BY FRONTEND
         result = {
-            "filename":       f.filename,
-            "verdict":        status,
+            "filename": f.filename,
+            "verdict": status,
             "verdict_reason": reason,
-            "offset_ms":      s_off,
-            "drift_ms":       drift,
-            "score_pct":      dna,
-            "phase_health":   calculate_phase(f_path),
-            "speed_factor":   round(speed_val, 6),
+            "offset_ms": s_off,
+            "drift_ms": drift,
+            "score_pct": dna,
+            "phase_health": calculate_phase(f_path),
+            "speed_factor": round(speed_val, 6),
             
-            # Flattened metadata for frontend
             "master_sample_rate": ref_meta["sr"],
-            "dub_sample_rate":    comp_meta["sr"],
-            "master_duration":    ref_meta["duration_sec"],
-            "dub_duration":       comp_meta["duration_sec"],
-            "master_channels":    ref_meta["channel_label"],
-            "dub_channels":       comp_meta["channel_label"],
-            "master_format":      ref_meta["format"],
-            "dub_format":         comp_meta["format"],
+            "dub_sample_rate": comp_meta["sr"],
+            "master_duration": ref_meta["duration_sec"],
+            "dub_duration": comp_meta["duration_sec"],
+            "master_channels": ref_meta["channel_label"],
+            "dub_channels": comp_meta["channel_label"],
+            "master_format": ref_meta["format"],
+            "dub_format": comp_meta["format"],
             
-            # Flattened levels
-            "master_loudness":    ref_levels["lufs"],
-            "dub_loudness":       comp_levels["lufs"],
-            "master_peak":        ref_levels["peak"],
-            "dub_peak":           comp_levels["peak"],
-            "master_true_peak":   ref_levels["true_peak"],
-            "dub_true_peak":      comp_levels["true_peak"],
+            "master_loudness": ref_levels["lufs"],
+            "dub_loudness": comp_levels["lufs"],
+            "master_peak": ref_levels["peak"],
+            "dub_peak": comp_levels["peak"],
+            "master_true_peak": ref_levels["true_peak"],
+            "dub_true_peak": comp_levels["true_peak"],
 
-            # Waveform data for charts
             "master_rms_envelope": rms_envelope(y_ref_s_raw).tolist(),
-            "dub_rms_envelope":    (-rms_envelope(y_c_s_raw)).tolist(),
-            "master_raw_peaks":    downsample_waveform(np.abs(normalize_visual(y_ref_s_raw))),
-            "dub_raw_peaks":       downsample_waveform(np.abs(normalize_visual(y_c_s_raw)))
+            "dub_rms_envelope": (-rms_envelope(y_c_s_raw)).tolist(),
+            "master_raw_peaks": downsample_waveform(np.abs(normalize_visual(y_ref_s_raw))),
+            "dub_raw_peaks": downsample_waveform(np.abs(normalize_visual(y_c_s_raw)))
         }
 
         del y_c_s, y_c_e, y_c_s_raw, y_c_s_an, y_c_e_an
@@ -304,7 +285,7 @@ def process_file(f, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw,
         return {"filename": f.filename, "verdict": "FAIL", 
                 "verdict_reason": str(err), "error": True}
 
-# ── ROUTES ─────────────────────────────────────────────────────────────────────
+# ── ROUTES ────────────────────────────────────────────────────────────────────
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -312,7 +293,7 @@ def index():
 @app.route('/upload', methods=['POST'])
 def upload():
     session_id = f"SES_{uuid.uuid4().hex[:6].upper()}"
-    root       = os.path.join(DATA_DIR, session_id)
+    root = os.path.join(DATA_DIR, session_id)
     os.makedirs(root, exist_ok=True)
 
     try:
@@ -320,7 +301,7 @@ def upload():
         vocal_logic = request.form.get('vocal_dna') == 'on'
         
         # Match form field names: 'master_file' and 'dub_files'
-        ref   = request.files.get('master_file')
+        ref = request.files.get('master_file')
         comps = request.files.getlist('dub_files')
 
         if not ref or not ref.filename:
@@ -328,14 +309,14 @@ def upload():
         if not comps or len(comps) == 0 or not comps[0].filename:
             return jsonify({"error": "No comparison dub file provided"}), 400
         if not allowed_file(ref.filename):
-            return jsonify({"error": "Master file extension not supported."}), 400
+            return jsonify({"error": "Master file extension not supported"}), 400
 
-        ref_path  = os.path.join(root, secure_filename(ref.filename))
+        ref_path = os.path.join(root, secure_filename(ref.filename))
         ref.save(ref_path)
         
-        ref_meta   = get_file_metadata(ref_path)
+        ref_meta = get_file_metadata(ref_path)
         ref_levels = scan_levels(ref_path)
-        total_dur  = ref_meta["duration_sec"]
+        total_dur = ref_meta["duration_sec"]
 
         y_ref_s, _ = load_segment(ref_path, PERFORMANCE_SR, duration=SEGMENT_DURATION)
         y_ref_e, _ = load_segment(ref_path, PERFORMANCE_SR, 
