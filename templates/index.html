@@ -23,411 +23,607 @@
             --warn:       #d97706;
             --warn-bg:    #fffbeb;
             --warn-bd:    #fcd34d;
+            --mono: 'IBM Plex Mono', monospace;
+            --sans: 'IBM Plex Sans', sans-serif;
         }
-        body.dark-mode {
-            --bg:         #0b1019;
-            --card:       #111827;
-            --text:       #f8fafc;
-            --muted:      #94a3b8;
-            --border:     #1f2937;
-            --brand-dim:  rgba(47,110,245,0.15);
-            --danger-bg:  rgba(220,38,38,0.1);
-            --danger-bd:  rgba(220,38,38,0.3);
-            --success-bg: rgba(5,150,105,0.1);
-            --success-bd: rgba(5,150,105,0.3);
-            --warn-bg:    rgba(217,119,6,0.1);
-            --warn-bd:    rgba(217,119,6,0.3);
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 14px; }
+        body { font-family: var(--sans); background: var(--bg); color: var(--text); padding: 32px 24px; min-height: 100vh; }
+        .page { max-width: 1100px; margin: 0 auto; }
+
+        /* ── TOP BAR ── */
+        .topbar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+        .logo { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; display: flex; align-items: baseline; gap: 6px; }
+        .logo .accent { color: var(--brand); }
+        .logo .ver { font-size: 10px; font-weight: 500; color: var(--muted); font-family: var(--mono); background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+        .tagline { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: var(--mono); }
+
+        /* ── PANEL ── */
+        .panel {
+            background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+            padding: 18px 22px; display: flex; align-items: flex-end; gap: 14px;
+            margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); flex-wrap: wrap;
         }
-        body { background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; margin: 0; padding: 24px 16px; transition: background 0.2s, color 0.2s; }
-        .wrap { max-width: 1040px; margin: 0 auto; }
-        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-        h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; margin: 0; }
-        h1 span { color: var(--brand); }
-        .version { font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 6px; background: var(--border); color: var(--muted); margin-left: 8px; vertical-align: middle; }
-        .theme-toggle { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; }
-        .theme-toggle:hover { background: var(--brand-dim); color: var(--brand); }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px; }
-        .drop-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        @media(max-width: 640px){ .drop-row { grid-template-columns: 1fr; } }
-        label { display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
-        .file-box { border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; align-items: center; background: rgba(0,0,0,0.01); }
-        body.dark-mode .file-box { background: rgba(255,255,255,0.01); }
-        .file-box input[type="file"] { width: 100%; font-size: 13px; color: var(--muted); }
-        .file-box input[type="file"]::-webkit-file-upload-button { background: var(--brand); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; margin-right: 12px; }
-        .file-box input[type="file"]::-webkit-file-upload-button:hover { opacity: 0.9; }
-        .ctrl-row { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); }
-        .opt-lbl { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); font-weight: 500; cursor: pointer; }
-        .btn { background: var(--brand); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: transform 0.1s; }
-        .btn:hover { opacity: 0.95; }
-        .btn:active { transform: scale(0.98); }
-        .btn:disabled { background: var(--muted); opacity: 0.6; cursor: not-allowed; }
-        .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
-        .mini-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
-        .mini-val { font-size: 24px; font-weight: 700; margin-top: 4px; }
-        .mini-lbl { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
-        .res-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-        .res-title { font-size: 16px; font-weight: 700; margin: 0; }
-        .badge { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .badge.pass { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-bd); }
-        .badge.fail { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-bd); }
-        .badge.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-bd); }
-        .res-desc { font-size: 13px; color: var(--muted); margin: 0 0 24px 0; }
-        .metrics-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }
-        @media(max-width: 768px){ .metrics-grid { grid-template-columns: repeat(2, 1fr); } }
-        .metric-box { background: rgba(0,0,0,0.01); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center; }
-        body.dark-mode .metric-box { background: rgba(255,255,255,0.01); }
-        .metric-box .val { font-size: 16px; font-weight: 700; color: var(--text); margin-top: 2px; font-family: 'IBM Plex Mono', monospace; }
-        .metric-box .lbl { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
-        .section-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin: 24px 0 12px 0; display: flex; align-items: center; gap: 8px; }
-        .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-        .table-wrap { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--card); }
-        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
-        th { background: rgba(0,0,0,0.01); color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
-        body.dark-mode th { background: rgba(255,255,255,0.01); }
-        td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text); }
-        tr:last-child td { border-bottom: none; }
-        .tr-warn { background: var(--warn-bg); }
-        .tr-warn td { color: var(--warn); }
-        .chart-box { border: 1px solid var(--border); border-radius: 8px; height: 260px; background: var(--card); position: relative; }
-        .chart-actions { display: flex; gap: 8px; position: absolute; bottom: 12px; right: 12px; z-index: 10; }
-        .btn-toggle-wave { background: rgba(0,0,0,0.05); color: var(--text); border: 1px solid var(--border); padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; }
-        body.dark-mode .btn-toggle-wave { background: rgba(255,255,255,0.05); }
-        .btn-toggle-wave.active { background: var(--brand); color: white; border-color: var(--brand); }
-        .hidden { display: none !important; }
-        .btn-download { background: transparent; color: var(--brand); border: 1px solid var(--brand); padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; margin-right: 12px; }
-        .btn-download:hover { background: var(--brand); color: white; }
+        .field { flex: 1; min-width: 200px; }
+        .field-lbl { display: block; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; font-family: var(--mono); }
+        .drop { position: relative; border: 1.5px dashed var(--border); border-radius: 8px; padding: 9px 13px; cursor: pointer; background: var(--bg); transition: border-color .15s, background .15s; overflow: hidden; }
+        .drop:hover { border-color: var(--brand); background: var(--brand-dim); }
+        .drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+        .drop .fname { font-size: 12px; font-family: var(--mono); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .drop .fname.ph { color: var(--muted); }
+
+        .tog { display: flex; align-items: center; gap: 7px; padding-bottom: 2px; white-space: nowrap; }
+        .tog label { font-size: 13px; font-weight: 600; cursor: pointer; }
+        input[type=checkbox] { accent-color: var(--brand); width: 15px; height: 15px; cursor: pointer; }
+
+        .btn-primary { background: var(--brand); color: #fff; border: none; padding: 10px 24px; border-radius: 8px; font-family: var(--sans); font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap; transition: opacity .15s, transform .1s; }
+        .btn-primary:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
+        .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+        .btn-ghost { background: none; color: var(--muted); border: 1px solid var(--border); padding: 8px 15px; border-radius: 8px; font-family: var(--sans); font-size: 12px; font-weight: 600; cursor: pointer; transition: color .18s, border-color .18s; }
+        .btn-ghost:hover { color: var(--danger); border-color: var(--danger); }
+
+        /* ── SUMMARY BAR ── */
+        .sum-bar { display: none; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 13px 20px; margin-bottom: 20px; gap: 24px; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+        .sum-bar.on { display: flex; }
+        .ss .v { font-size: 22px; font-weight: 700; font-family: var(--mono); line-height: 1; }
+        .ss .l { font-size: 9px; font-weight: 700; letter-spacing: 1.3px; color: var(--muted); text-transform: uppercase; margin-top: 2px; font-family: var(--mono); }
+        .ss.ok .v { color: var(--success); }
+        .ss.bad .v { color: var(--danger); }
+        .sd { width: 1px; height: 28px; background: var(--border); }
+
+        /* ── LOADER ── */
+        #loader { display: none; text-align: center; padding: 56px 20px; }
+        #loader.on { display: block; }
+        .spin { width: 38px; height: 38px; border: 3px solid var(--border); border-top-color: var(--brand); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 14px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #loader .lm { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+        #loader .ls { font-size: 12px; color: var(--muted); }
+
+        /* ── ERROR ── */
+        .err { display: none; background: var(--danger-bg); border: 1px solid var(--danger-bd); border-radius: 10px; padding: 13px 17px; margin-bottom: 18px; }
+        .err.on { display: block; }
+        .err strong { color: var(--danger); font-size: 13px; }
+        .err pre { margin-top: 7px; font-size: 11px; font-family: var(--mono); color: #7f1d1d; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow-y: auto; }
+
+        /* ── RESULT CARD ── */
+        .rc { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 14px rgba(0,0,0,0.03); }
+        .rc.ec { border-color: var(--danger-bd); background: var(--danger-bg); }
+        .rc-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+        .rc-head h3 { font-size: 14px; font-weight: 700; font-family: var(--mono); word-break: break-all; }
+        .rc-head .rsub { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+
+        .badge { padding: 3px 12px; border-radius: 20px; font-weight: 700; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; margin-left: 10px; flex-shrink: 0; font-family: var(--mono); }
+        .bp { background: var(--success-bg); color: #065f46; border: 1px solid var(--success-bd); }
+        .bf { background: var(--danger-bg);  color: #991b1b; border: 1px solid var(--danger-bd); }
+        .be { background: var(--warn-bg);    color: #92400e; border: 1px solid var(--warn-bd); }
+
+        /* ── 5-METRIC GRID ── */
+        .sg { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 14px; }
+        .sb { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 8px; text-align: center; }
+        .sb.al { background: var(--danger-bg); border-color: var(--danger-bd); }
+        .sb.wn { background: var(--warn-bg);   border-color: var(--warn-bd); }
+        .sb-lbl { font-size: 9px; font-weight: 700; letter-spacing: 1.2px; color: var(--muted); text-transform: uppercase; margin-bottom: 7px; font-family: var(--mono); }
+        .sb-val { font-size: 16px; font-weight: 700; font-family: var(--mono); color: var(--text); }
+        .sb.al .sb-val { color: var(--danger); }
+        .sb.wn .sb-val { color: var(--warn); }
+
+        /* ── INFO STRIPS (frame rates + speed) ── */
+        .info-strip {
+            background: #f5f8ff; border: 1px solid #dbeafe;
+            border-radius: 10px; padding: 13px 16px; margin-bottom: 13px;
+        }
+        .strip-title { font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--brand); font-family: var(--mono); margin-bottom: 11px; }
+
+        /* Frame rate table — proper table, no grid hacks */
+        table.fr { width: 100%; border-collapse: collapse; }
+        table.fr th { font-size: 9px; font-weight: 700; letter-spacing: 1.1px; text-transform: uppercase; color: var(--muted); font-family: var(--mono); padding: 0 0 8px 0; text-align: center; border-bottom: 1px solid #dbeafe; }
+        table.fr th:first-child { text-align: left; }
+        table.fr td { font-size: 13px; font-weight: 700; font-family: var(--mono); color: var(--text); padding: 9px 0 0 0; text-align: center; }
+        table.fr td:first-child { font-size: 11px; font-weight: 500; color: var(--muted); text-align: left; }
+        table.fr td.al { color: var(--danger); }
+        table.fr .unit { font-size: 9px; color: var(--muted); font-weight: 400; }
+
+        /* Speed strip */
+        .speed-row { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+        .speed-cell .slbl { font-size: 9px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: var(--brand); font-family: var(--mono); margin-bottom: 4px; }
+        .speed-cell .sval { font-size: 16px; font-weight: 700; font-family: var(--mono); color: var(--text); }
+        .speed-action { flex: 1; text-align: right; font-size: 12px; color: var(--muted); font-style: italic; }
+
+        /* ── META TABLE ── */
+        .meta-wrap { overflow-x: auto; margin-bottom: 14px; }
+        table.mt { width: 100%; border-collapse: collapse; }
+        table.mt th { text-align: left; padding: 7px 10px; background: var(--bg); color: var(--muted); font-weight: 700; font-size: 9px; letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid var(--border); font-family: var(--mono); }
+        table.mt td { padding: 8px 10px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 12px; color: #334155; }
+        table.mt tr.mm td { background: var(--warn-bg); color: #92400e; font-weight: 600; }
+        table.mt tr:last-child td { border-bottom: none; }
+
+        /* ── WAVEFORM ── */
+        .wave-wrap { border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+        .wave-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 14px; background: var(--bg);
+            border-bottom: 1px solid var(--border);
+        }
+        .wave-title { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; font-family: var(--mono); color: var(--muted); }
+        .wave-title strong { color: var(--text); }
+        .wave-tabs { display: flex; gap: 4px; }
+        .wave-tab {
+            font-size: 10px; font-weight: 700; font-family: var(--mono);
+            padding: 3px 10px; border-radius: 5px; cursor: pointer; border: 1px solid var(--border);
+            background: var(--card); color: var(--muted); transition: all .15s; letter-spacing: 0.5px;
+        }
+        .wave-tab.active { background: var(--brand); color: #fff; border-color: var(--brand); }
+        .wave-tab:hover:not(.active) { border-color: var(--brand); color: var(--brand); }
+        .wave-box  { width: 100%; height: 190px; background: #f8fafc; }
+        .wave-foot {
+            display: flex; gap: 16px; align-items: center;
+            padding: 6px 14px; background: #f1f5f9;
+            border-top: 1px solid var(--border); flex-wrap: wrap;
+        }
+        .wl { display: flex; align-items: center; gap: 7px; font-size: 11px; font-family: var(--mono); color: var(--muted); }
+        .wd { width: 20px; height: 2px; border-radius: 1px; }
+        .wave-note { font-size: 10px; color: var(--muted); font-family: var(--mono); margin-left: auto; font-style: italic; }
+        .wave-desc { font-size: 10px; color: var(--muted); font-family: var(--mono); font-style: italic; }
+
+        @media (max-width: 720px) {
+            .panel { flex-direction: column; align-items: stretch; }
+            .sg { grid-template-columns: repeat(2, 1fr); }
+        }
     </style>
 </head>
-<body class="dark-mode">
-    <div class="wrap">
-        <header>
-            <h1>🎧 Sync Engine <span>Pro</span><span class="version">v6 Studio</span></h1>
-            <button class="theme-toggle" onclick="toggleTheme()">☀️ Light Mode</button>
-        </header>
+<body>
+<div class="page">
 
-        <div class="card">
-            <form id="uploadForm" onsubmit="handleUpload(event)">
-                <div class="drop-row">
-                    <div>
-                        <label>Master Reference Audio</label>
-                        <div class="file-box"><input type="file" name="master_file" required></div>
-                    </div>
-                    <div>
-                        <label>Comparison Dub Audio</label>
-                        <div class="file-box"><input type="file" name="dub_files" required></div>
-                    </div>
-                </div>
-                <div class="ctrl-row">
-                    <label class="opt-lbl"><input type="checkbox" name="vocal_dna" checked> High-Pass Vocal DNA Filter</label>
-                    <button type="submit" id="runBtn" class="btn">Run QC Alignment</button>
-                </div>
-            </form>
+    <!-- Top bar -->
+    <div class="topbar">
+        <div>
+            <div class="logo">🎧 Sync Engine <span class="accent">Pro</span> <span class="ver">v6</span></div>
+            <div class="tagline">Temporal offset · Drift · Speed factor · Onset DNA · True Peak · Phase · Frame rates</div>
         </div>
-
-        <div id="summaryRow" class="summary-grid hidden">
-            <div class="mini-card"><div class="mini-lbl">Processed Matrix</div><div class="mini-val" style="color:var(--brand)">1</div></div>
-            <div class="mini-card"><div class="mini-lbl">Passed Tracks</div><div class="mini-val" id="sumPass" style="color:var(--success)">0</div></div>
-            <div class="mini-card"><div class="mini-lbl">Drift Warnings</div><div class="mini-val" id="sumWarn" style="color:var(--warn)">0</div></div>
-        </div>
-
-        <div id="dashboard" class="card hidden">
-            <div class="res-head">
-                <h2 class="res-title" id="outFilename">—</h2>
-                <div class="d-flex align-items-center">
-                    <button id="dlReportBtn" class="btn-download" onclick="downloadJSONPayload()">Download Report JSON</button>
-                    <span class="badge" id="outBadge">—</span>
-                </div>
-            </div>
-            <p class="res-desc" id="outVerdict">—</p>
-
-            <div class="metrics-grid">
-                <div class="metric-box"><div class="lbl">Start Offset</div><div class="val" id="mOffset">—</div></div>
-                <div class="metric-box"><div class="lbl">Total Drift</div><div class="val" id="mDrift">—</div></div>
-                <div class="metric-box"><div class="lbl">Onset DNA Match</div><div class="val" id="mScore">—</div></div>
-                <div class="metric-box"><div class="lbl">Phase Health</div><div class="val" id="mPhase">—</div></div>
-                <div class="metric-box"><div class="lbl">Clock Speed Ratio</div><div class="val" id="mSpeed">—</div></div>
-            </div>
-
-            <div class="section-title">Timing In Frames</div>
-            <div class="table-wrap" style="margin-bottom:24px">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Metric Target</th>
-                            <th>23.976 FPS (Film/Netflix)</th>
-                            <th>25 FPS (PAL/EBU)</th>
-                            <th>29.97 FPS (NTSC)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr><td><b>Start Offset</b></td><td id="fOff23">—</td><td id="fOff25">—</td><td id="fOff29">—</td></tr>
-                        <tr><td><b>Total Core Drift</b></td><td id="fDrift23">—</td><td id="fDrift25">—</td><td id="fDrift29">—</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="section-title">Signal Analytics Matrix</div>
-            <div class="table-wrap" style="margin-bottom:24px">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Property Dimension</th>
-                            <th>Master Reference File</th>
-                            <th>Comparison Dub Asset</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr><td><b>Sample Rate</b></td><td id="pSR1">—</td><td id="pSR2">—</td></tr>
-                        <tr><td><b>Duration Time</b></td><td id="pDur1">—</td><td id="pDur2">—</td></tr>
-                        <tr id="rowChannels"><td><b>Audio Channels</b></td><td id="pCh1">—</td><td id="pCh2">—</td></tr>
-                        <tr><td><b>Codec Format Profile</b></td><td id="pFmt1">—</td><td id="pFmt2">—</td></tr>
-                        <tr><td><b>Integrated Loudness</b></td><td id="pLoud1">—</td><td id="pLoud2">—</td></tr>
-                        <tr><td><b>Sample Peak Vol</b></td><td id="pPk1">—</td><td id="pPk2">—</td></tr>
-                        <tr><td><b>True Peak (dBTP)</b></td><td id="pTpk1">—</td><td id="pTpk2">—</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="section-title">Waveform Envelope Matrix Tracking</div>
-            <div class="chart-box">
-                <div id="echartWave" style="width:100%;height:100%"></div>
-                <div class="chart-actions">
-                    <button id="modeRMS" class="btn-toggle-wave active" onclick="setWaveMode('RMS')">RMS Envelope</button>
-                    <button id="modeRaw" class="btn-toggle-wave" onclick="setWaveMode('Raw')">Raw Signal Peaks</button>
-                </div>
-            </div>
-        </div>
+        <button class="btn-ghost" onclick="wipeCache()">Clear Cache</button>
     </div>
 
-    <script>
-        let chart = null;
-        let globalRawResponseData = null;
+    <!-- Control Panel -->
+    <div class="panel">
+        <div class="field">
+            <span class="field-lbl">Master Reference</span>
+            <div class="drop">
+                <div class="fname ph" id="refName">Choose master file…</div>
+                <input type="file" id="refFile" accept="audio/*" onchange="onPick('refFile','refName',false)">
+            </div>
+        </div>
+        <div class="field">
+            <span class="field-lbl">Dub Files</span>
+            <div class="drop">
+                <div class="fname ph" id="compName">Choose dub files…</div>
+                <input type="file" id="compFiles" multiple accept="audio/*" onchange="onPick('compFiles','compName',true)">
+            </div>
+        </div>
+        <div class="tog">
+            <input type="checkbox" id="vocalDna" checked>
+            <label for="vocalDna" title="HPSS percussive separation + 300–3400Hz bandpass. Isolates speech transients for more accurate onset DNA scoring.">Vocal DNA Filter</label>
+        </div>
+        <button class="btn-primary" id="runBtn" onclick="runQC()">Run QC Engine</button>
+    </div>
 
-        function toggleTheme() {
-            const body = document.body;
-            const btn = document.querySelector('.theme-toggle');
-            if (body.classList.contains('dark-mode')) {
-                body.classList.remove('dark-mode');
-                btn.innerText = '🌙 Dark Mode';
-            } else {
-                body.classList.add('dark-mode');
-                btn.innerText = '☀️ Light Mode';
-            }
-            if (chart) {
-                const isDark = body.classList.contains('dark-mode');
-                chart.setOption({
-                    backgroundColor: 'transparent',
-                    textStyle: { color: isDark ? '#94a3b8' : '#64748b' }
-                });
-            }
+    <!-- Summary bar -->
+    <div class="sum-bar" id="sumBar">
+        <div class="ss"><div class="v" id="sumTotal">—</div><div class="l">Processed</div></div>
+        <div class="sd"></div>
+        <div class="ss ok"><div class="v" id="sumPass">—</div><div class="l">Passed</div></div>
+        <div class="sd"></div>
+        <div class="ss bad"><div class="v" id="sumFail">—</div><div class="l">Failed / Error</div></div>
+    </div>
+
+    <!-- Loader -->
+    <div id="loader">
+        <div class="spin"></div>
+        <div class="lm" id="loadMsg">Running QC Engine…</div>
+        <div class="ls">Analyzing onset DNA, drift &amp; levels. Large files may take a moment.</div>
+    </div>
+
+    <!-- Error banner -->
+    <div class="err" id="errBanner">
+        <strong>⚠ Analysis Failed</strong>
+        <pre id="errDetail"></pre>
+    </div>
+
+    <!-- Results -->
+    <div id="results"></div>
+</div>
+
+<script>
+    function onPick(iId, lId, multi) {
+        const f = document.getElementById(iId).files;
+        const el = document.getElementById(lId);
+        if (!f.length) { el.textContent = 'Choose file…'; el.classList.add('ph'); return; }
+        el.classList.remove('ph');
+        el.textContent = (multi && f.length > 1) ? `${f.length} files selected` : f[0].name;
+    }
+
+    async function wipeCache() {
+        if (!confirm('Clear all session data from the server?')) return;
+        await fetch('/wipe', { method: 'POST' });
+        location.reload();
+    }
+
+    function setLoading(on, msg = 'Running QC Engine…') {
+        document.getElementById('loader').classList.toggle('on', on);
+        document.getElementById('loadMsg').textContent = msg;
+        document.getElementById('runBtn').disabled = on;
+        document.getElementById('errBanner').classList.remove('on');
+    }
+
+    function showError(detail) {
+        document.getElementById('errBanner').classList.add('on');
+        document.getElementById('errDetail').textContent = detail;
+        setLoading(false);
+    }
+
+    async function runQC() {
+        const ref   = document.getElementById('refFile').files[0];
+        const comps = document.getElementById('compFiles').files;
+        if (!ref)          { alert('Please select a master reference file.'); return; }
+        if (!comps.length) { alert('Please select at least one dub file.'); return; }
+
+        document.getElementById('results').innerHTML = '';
+        document.getElementById('sumBar').classList.remove('on');
+        setLoading(true, `Analyzing ${comps.length} file${comps.length > 1 ? 's' : ''}…`);
+
+        const fd = new FormData();
+        fd.append('reference', ref);
+        for (const f of comps) fd.append('comparison[]', f);
+        fd.append('vocal_logic', document.getElementById('vocalDna').checked);
+
+        let data;
+        try {
+            const res = await fetch('/upload', { method: 'POST', body: fd });
+            data = await res.json();
+            if (!res.ok || data.error) { showError(data.error || 'Unknown server error'); return; }
+        } catch(e) { showError(`Network error: ${e.message}`); return; }
+
+        setLoading(false);
+        renderAll(data);
+    }
+
+    function renderAll(data) {
+        const results = data.results || [];
+        const passed  = results.filter(r => r.status === 'PASS').length;
+        document.getElementById('sumTotal').textContent = results.length;
+        document.getElementById('sumPass').textContent  = passed;
+        document.getElementById('sumFail').textContent  = results.length - passed;
+        document.getElementById('sumBar').classList.add('on');
+        const container = document.getElementById('results');
+        container.innerHTML = '';
+        results.forEach((r, i) => renderCard(r, i, container));
+    }
+
+    function renderCard(r, i, container) {
+        const div = document.createElement('div');
+
+        if (r.error) {
+            div.className = 'rc ec';
+            div.innerHTML = `
+                <div class="rc-head">
+                    <div><h3>${x(r.filename)}</h3><div class="rsub" style="color:var(--danger)">Processing failed</div></div>
+                    <span class="badge be">ERROR</span>
+                </div>
+                <pre style="font-size:12px;color:#7f1d1d;white-space:pre-wrap;font-family:var(--mono)">${x(r.reason)}</pre>`;
+            container.appendChild(div);
+            return;
         }
 
-        async function handleUpload(e) {
-            e.preventDefault();
-            const form = document.getElementById('uploadForm');
-            const runBtn = document.getElementById('runBtn');
-            const formData = new FormData(form);
+        const isPass  = r.status === 'PASS';
+        const offAl   = Math.abs(r.offset_ms)      > 80;
+        const driftAl = Math.abs(r.total_drift_ms) > 150;
+        const dnaAl   = r.dna_match < 80;
+        const sf      = r.speed_factor  || {};
+        const lv      = r.levels        || {};
+        const of      = r.offset_frames || {};
+        const df      = r.drift_frames  || {};
 
-            runBtn.disabled = true;
-            runBtn.innerText = 'Aligning Assets...';
+        const sfDelta = parseFloat(sf.delta) || 0;
+        const sfClass = Math.abs(sfDelta) > 0.05 ? 'wn' : '';
 
-            try {
-                const response = await fetch('/upload', { method: 'POST', body: formData });
-                const data = await response.json();
-                
-                globalRawResponseData = data;
+        // Frame value helper — highlight if large
+        const fv = (val, threshold) => {
+            const n = Math.abs(parseFloat(val) || 0);
+            return `<span class="${n > threshold ? 'al' : ''}">${val ?? '—'}</span>`;
+        };
 
-                let target = null;
-                if (data.results && data.results.length > 0) target = data.results[0];
-                else if (data.offset_ms !== undefined) target = data;
+        div.className = 'rc';
+        div.innerHTML = `
+            <div class="rc-head">
+                <div>
+                    <h3>${x(r.filename)}</h3>
+                    <div class="rsub">${x(r.reason)}</div>
+                </div>
+                <span class="badge ${isPass ? 'bp' : 'bf'}">${r.status}</span>
+            </div>
 
-                if (target) {
-                    renderDashboard(target);
-                } else {
-                    alert('Invalid JSON structure returned from alignment pipeline engine.');
-                }
-            } catch (err) {
-                alert('Connection error or backend script exception.');
-            } finally {
-                runBtn.disabled = false;
-                runBtn.innerText = 'Run QC Alignment';
-            }
+            <!-- 5 core metrics -->
+            <div class="sg">
+                <div class="sb ${offAl ? 'al' : ''}">
+                    <div class="sb-lbl">Start Offset</div>
+                    <div class="sb-val">${r.offset_ms}ms</div>
+                </div>
+                <div class="sb ${driftAl ? 'al' : ''}">
+                    <div class="sb-lbl">Total Drift</div>
+                    <div class="sb-val">${r.total_drift_ms}ms</div>
+                </div>
+                <div class="sb ${dnaAl ? 'al' : ''}">
+                    <div class="sb-lbl">Onset DNA${r.vocal_filter ? ' <span style="color:var(--brand);font-size:8px">▲ HPSS</span>' : ''}</div>
+                    <div class="sb-val">${r.dna_match}%</div>
+                </div>
+                <div class="sb">
+                    <div class="sb-lbl">Phase Health</div>
+                    <div class="sb-val" style="font-size:12px">${x(r.phase)}</div>
+                </div>
+                <div class="sb ${sfClass}">
+                    <div class="sb-lbl">Speed Factor</div>
+                    <div class="sb-val" style="font-size:13px">${x(sf.display || 'N/A')}</div>
+                </div>
+            </div>
+
+            <!-- Frame rate table -->
+            <div class="info-strip">
+                <div class="strip-title">⏱ Timing in Frames</div>
+                <table class="fr">
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>23.976 fps<br><span class="unit">Film / Netflix</span></th>
+                            <th>25 fps<br><span class="unit">PAL / EBU</span></th>
+                            <th>29.97 fps<br><span class="unit">NTSC</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Start Offset<br><span class="unit">${r.offset_ms}ms</span></td>
+                            <td>${fv(of['23.976'], 2)} <span class="unit">fr</span></td>
+                            <td>${fv(of['25'],     2)} <span class="unit">fr</span></td>
+                            <td>${fv(of['29.97'],  2)} <span class="unit">fr</span></td>
+                        </tr>
+                        <tr>
+                            <td>Total Drift<br><span class="unit">${r.total_drift_ms}ms</span></td>
+                            <td>${fv(df['23.976'], 3)} <span class="unit">fr</span></td>
+                            <td>${fv(df['25'],     3)} <span class="unit">fr</span></td>
+                            <td>${fv(df['29.97'],  3)} <span class="unit">fr</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Speed factor -->
+            <div class="info-strip">
+                <div class="strip-title">⚙ Clock Speed Analysis</div>
+                <div class="speed-row">
+                    <div class="speed-cell">
+                        <div class="slbl">Clock Ratio</div>
+                        <div class="sval">${x(sf.display || 'N/A')}</div>
+                    </div>
+                    <div class="speed-cell">
+                        <div class="slbl">Δ Speed</div>
+                        <div class="sval" style="color:${Math.abs(sfDelta)>0.05?'var(--warn)':'var(--text)'}">${x(sf.delta || 'N/A')}</div>
+                    </div>
+                    <div class="speed-action">${x(sf.action || '')}</div>
+                </div>
+            </div>
+
+            <!-- Technical metadata -->
+            <div class="meta-wrap">
+                <table class="mt">
+                    <thead><tr><th>Property</th><th>Master Reference</th><th>Comparison Dub</th></tr></thead>
+                    <tbody>
+                        <tr><td>Sample Rate</td><td>${x(r.ref_meta.sr)}</td><td>${x(r.comp_meta.sr)}</td></tr>
+                        <tr><td>Duration</td><td>${x(r.ref_meta.duration)}</td><td>${x(r.comp_meta.duration)}</td></tr>
+                        <tr class="${r.chan_mismatch ? 'mm' : ''}">
+                            <td>Channels${r.chan_mismatch ? ' ⚠' : ''}</td>
+                            <td>${x(r.ref_meta.channel_label)}</td>
+                            <td>${x(r.comp_meta.channel_label)}</td>
+                        </tr>
+                        <tr><td>Bit Depth / Format</td><td>${x(r.ref_meta.bit_depth)}</td><td>${x(r.comp_meta.bit_depth)}</td></tr>
+                        <tr><td>Integrated Loudness</td><td>—</td><td>${x(lv.lufs)}</td></tr>
+                        <tr><td>Sample Peak</td><td>—</td><td>${x(lv.peak)}</td></tr>
+                        <tr>
+                            <td>True Peak (dBTP)
+                                <span style="font-size:9px;color:var(--muted);font-family:var(--mono);display:block">EBU R128 / ITU-R BS.1770</span>
+                            </td>
+                            <td>—</td>
+                            <td>${x(lv.true_peak)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Waveform -->
+            <div class="wave-wrap">
+                <div class="wave-head">
+                    <div class="wave-title">
+                        <strong>Waveform Comparison</strong>
+                        &nbsp;·&nbsp; Mirrored dual-track · First 60s
+                        ${r.vocal_filter ? ' &nbsp;·&nbsp; HPSS filtered' : ''}
+                    </div>
+                    <div class="wave-tabs">
+                        <button class="wave-tab active" id="tab-rms-${i}" onclick="switchWave(${i},'rms')">RMS Envelope</button>
+                        <button class="wave-tab"        id="tab-raw-${i}" onclick="switchWave(${i},'raw')">Raw Waveform</button>
+                    </div>
+                </div>
+                <div class="wave-box" id="wv-${i}"></div>
+                <div class="wave-foot">
+                    <div class="wl"><div class="wd" style="background:#3b82f6"></div>Master (above axis)</div>
+                    <div class="wl"><div class="wd" style="background:#f59e0b"></div>Dub (below axis)</div>
+                    <div class="wave-desc" id="wv-desc-${i}">
+                        Smoothed energy envelope — comparable across languages, shows structural sync
+                    </div>
+                </div>
+            </div>
+        `;
+
+        container.appendChild(div);
+        // Store both datasets on the element for tab switching
+        const wvEl = document.getElementById(`wv-${i}`);
+        wvEl._data = {
+            rms: { master: r.wave_rms_master, dub: r.wave_rms_dub },
+            raw: { master: r.wave_raw_master, dub: r.wave_raw_dub }
+        };
+        renderWave(i, r.wave_rms_master, r.wave_rms_dub, 'rms');
+    }
+
+    const WAVEFORM_MAX_POINTS = 2000;
+
+    // Chart instance registry — keyed by index, used for tab switching
+    const _charts = {};
+
+    /* ── Tab switch: swap RMS ↔ Raw data in existing chart ── */
+    function switchWave(i, mode) {
+        const el   = document.getElementById(`wv-${i}`);
+        const desc = document.getElementById(`wv-desc-${i}`);
+        if (!el?._data) return;
+
+        // Update tab button states
+        document.getElementById(`tab-rms-${i}`).classList.toggle('active', mode === 'rms');
+        document.getElementById(`tab-raw-${i}`).classList.toggle('active', mode === 'raw');
+
+        const d = el._data[mode];
+
+        // Update description text
+        if (desc) {
+            desc.textContent = mode === 'rms'
+                ? 'Smoothed energy envelope — comparable across languages, shows structural sync'
+                : 'Raw audio samples (abs-normalised) — acoustic detail, compare transient shapes';
         }
 
-        function renderDashboard(res) {
-            document.getElementById('summaryRow').classList.remove('hidden');
-            document.getElementById('dashboard').classList.remove('hidden');
+        // Update tooltip label
+        const label = mode === 'rms' ? 'RMS energy' : 'Raw amplitude';
 
-            const isFail = res.verdict === 'FAIL';
-            const isWarn = res.verdict === 'WARN' || Math.abs(res.drift_ms || 0) > 10;
+        // Update series data in the existing chart (no full re-render)
+        const chart = _charts[i];
+        if (!chart) { renderWave(i, d.master, d.dub, mode); return; }
 
-            const badge = document.getElementById('outBadge');
-            badge.innerText = res.verdict || 'PASS';
-            badge.className = 'badge ' + (isFail ? 'fail' : isWarn ? 'warn' : 'pass');
+        chart.setOption({
+            series: [
+                { name: '_zero', data: new Array(Math.min(d.master.length, d.dub.length)).fill(0) },
+                { name: 'Master', data: d.master },
+                { name: 'Dub',    data: d.dub }
+            ]
+        });
 
-            document.getElementById('sumPass').innerText = isFail ? '0' : '1';
-            document.getElementById('sumWarn').innerText = isWarn ? '1' : '0';
+        // Update tooltip mode label via closure hack
+        chart._waveMode = label;
+    }
 
-            document.getElementById('outFilename').innerText = res.filename || 'Comparison Asset Array';
-            document.getElementById('outVerdict').innerText = res.verdict_reason || 'All metrics within standard operational thresholds.';
+    /* ── ECharts mirrored dual-track waveform ── */
+    function renderWave(i, waveM, waveD, mode) {
+        const el = document.getElementById(`wv-${i}`);
+        if (!el || !waveM?.length || !waveD?.length) return;
 
-            const off = res.offset_ms || 0;
-            const drf = res.drift_ms || 0;
+        const chart = echarts.init(el, null, { renderer: 'canvas' });
+        _charts[i]  = chart;
+        chart._waveMode = mode === 'rms' ? 'RMS energy' : 'Raw amplitude';
 
-            document.getElementById('mOffset').innerText = off.toFixed(2) + ' ms';
-            document.getElementById('mDrift').innerText = drf.toFixed(2) + ' ms';
-            document.getElementById('mScore').innerText = (res.score_pct || 0).toFixed(1) + '%';
-            document.getElementById('mPhase').innerText = res.phase_health || '1.0 (Healthy)';
-            
-            const speedVal = res.speed_factor || 1.0;
-            const pctSpeed = (1 - speedVal) * 100;
-            document.getElementById('mSpeed').innerText = speedVal.toFixed(6) + 'x (' + (pctSpeed >= 0 ? '-' : '+') + Math.abs(pctSpeed).toFixed(4) + '%)';
-
-            const offSec = off / 1000;
-            const drfSec = drf / 1000;
-            document.getElementById('fOff23').innerText = (offSec * 23.976).toFixed(2) + ' fr';
-            document.getElementById('fOff25').innerText = (offSec * 25).toFixed(2) + ' fr';
-            document.getElementById('fOff29').innerText = (offSec * 29.97).toFixed(2) + ' fr';
-            
-            document.getElementById('fDrift23').innerText = (drfSec * 23.976).toFixed(2) + ' fr';
-            document.getElementById('fDrift25').innerText = (drfSec * 25).toFixed(2) + ' fr';
-            document.getElementById('fDrift29').innerText = (drfSec * 29.97).toFixed(2) + ' fr';
-
-            document.getElementById('pSR1').innerText = (res.master_sample_rate || '44100') + ' Hz';
-            document.getElementById('pSR2').innerText = (res.dub_sample_rate || '44100') + ' Hz';
-            document.getElementById('pDur1').innerText = (res.master_duration || 0).toFixed(2) + ' s';
-            document.getElementById('pDur2').innerText = (res.dub_duration || 0).toFixed(2) + ' s';
-            
-            document.getElementById('pCh1').innerText = res.master_channels || 'Stereo';
-            document.getElementById('pCh2').innerText = res.dub_channels || 'Mono';
-            document.getElementById('rowChannels').className = (res.master_channels !== res.dub_channels) ? 'tr-warn' : '';
-
-            document.getElementById('pFmt1').innerText = res.master_format || 'MPEG_LAYER_III';
-            document.getElementById('pFmt2').innerText = res.dub_format || 'MPEG_LAYER_III';
-            document.getElementById('pLoud1').innerText = res.master_loudness ? res.master_loudness.toFixed(2) + ' LUFS' : '—';
-            document.getElementById('pLoud2').innerText = res.dub_loudness ? res.dub_loudness.toFixed(2) + ' LUFS' : '—';
-            document.getElementById('pPk1').innerText = res.master_peak ? res.master_peak.toFixed(2) + ' dBFS' : '—';
-            document.getElementById('pPk2').innerText = res.dub_peak ? res.dub_peak.toFixed(2) + ' dBFS' : '—';
-            document.getElementById('pTpk1').innerText = res.master_true_peak ? res.master_true_peak.toFixed(2) + ' dBTP' : '—';
-            document.getElementById('pTpk2').innerText = res.dub_true_peak ? res.dub_true_peak.toFixed(2) + ' dBTP' : '—';
-
-            initTrackingChart(res);
-        }
-
-        function downloadJSONPayload() {
-            if (!globalRawResponseData) return;
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(globalRawResponseData, null, 4));
-            const downloadAnchor = document.createElement('a');
-            downloadAnchor.setAttribute("href", dataStr);
-            downloadAnchor.setAttribute("download", "sync_engine_report.json");
-            document.body.appendChild(downloadAnchor);
-            downloadAnchor.click();
-            downloadAnchor.remove();
-        }
-
-        function initTrackingChart(res) {
-            const container = document.getElementById('echartWave');
-            if (chart) { chart.dispose(); }
-            
-            chart = echarts.init(container);
-            chart._waveMode = 'RMS';
-            chart._resContext = res;
-
-            buildChartOptions();
-        }
-
-        function setWaveMode(mode) {
-            if (!chart) return;
-            chart._waveMode = mode;
-            document.getElementById('modeRMS').classList.toggle('active', mode === 'RMS');
-            document.getElementById('modeRaw').classList.toggle('active', mode === 'Raw');
-            buildChartOptions();
-        }
-
-        function buildChartOptions() {
-            const mode = chart._waveMode;
-            const res = chart._resContext;
-            const isDark = document.body.classList.contains('dark-mode');
-
-            let masterData = [];
-            let dubData = [];
-
-            if (mode === 'Raw' && res.master_raw_peaks && res.dub_raw_peaks) {
-                masterData = res.master_raw_peaks;
-                dubData = res.dub_raw_peaks;
-            } else {
-                masterData = res.master_rms_envelope || Array.from({length: 60}, () => Math.random() * 0.4 + 0.1);
-                dubData = res.dub_rms_envelope || Array.from({length: 60}, () => Math.random() * 0.4 + 0.1);
-            }
-
-            const invertedDub = dubData.map(v => -v);
-
-            chart.setOption({
-                backgroundColor: 'transparent',
-                grid: { top: 20, bottom: 20, left: 45, right: 20 },
-                textStyle: { fontFamily: 'IBM Plex Sans' },
-                xAxis: {
-                    type: 'category',
-                    boundaryGap: false,
-                    axisLine: { lineStyle: { color: isDark ? '#1f2937' : '#dde3ec' } },
-                    axisLabel: { show: false }
+        chart.setOption({
+            backgroundColor: '#f8fafc',
+            animation: false,
+            grid: { top: 14, bottom: 14, left: 46, right: 16 },
+            xAxis: {
+                type: 'category',
+                boundaryGap: false,
+                axisLine: { lineStyle: { color: '#e2e8f0' } },
+                axisTick: { show: false },
+                axisLabel: { show: false },
+                splitLine: { show: false }
+            },
+            yAxis: {
+                type: 'value',
+                min: -1.1, max: 1.1, interval: 0.5,
+                axisLine: { show: false },
+                axisTick: { show: false },
+                axisLabel: {
+                    color: '#94a3b8', fontSize: 9, fontFamily: 'IBM Plex Mono',
+                    formatter: v => v === 0 ? '0' : v.toFixed(1)
                 },
-                yAxis: {
-                    type: 'value',
-                    splitLine: { lineStyle: { color: isDark ? '#1f2937' : '#dde3ec' } },
-                    axisLabel: { color: isDark ? '#64748b' : '#94a3b8', fontSize: 10 }
+                splitLine: { show: true, lineStyle: { color: '#e8edf4', type: 'dashed', width: 1 } }
+            },
+            series: [
+                // Zero axis line
+                {
+                    name: '_zero', type: 'line',
+                    data: new Array(Math.min(waveM.length, waveD.length)).fill(0),
+                    symbol: 'none',
+                    lineStyle: { color: '#cbd5e1', width: 1.5, type: 'solid' },
+                    z: 1, silent: true, legendHoverLink: false
                 },
-                series: [
-                    {
-                        name: 'Master',
-                        type: 'line',
-                        symbol: 'none',
-                        smooth: true,
-                        data: masterData,
-                        itemStyle: { color: '#2f6ef5' },
-                        lineStyle: { width: 1.5 },
-                        areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1, [{offset:0, color:'rgba(47,110,245,0.24)'},{offset:1, color:'rgba(47,110,245,0.01)'}]) }
+                // Master — positive [0,+1], fills down to zero
+                {
+                    name: 'Master', type: 'line', data: waveM,
+                    symbol: 'none',
+                    lineStyle: { color: '#3b82f6', width: 1.2, opacity: 0.95 },
+                    areaStyle: {
+                        origin: 0,
+                        color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                            colorStops: [
+                                { offset: 0, color: 'rgba(59,130,246,0.35)' },
+                                { offset: 1, color: 'rgba(59,130,246,0.03)' }
+                            ]
+                        }
                     },
-                    {
-                        name: 'Dub',
-                        type: 'line',
-                        symbol: 'none',
-                        smooth: true,
-                        data: invertedDub,
-                        itemStyle: { color: '#ef4444' },
-                        lineStyle: { width: 1.5 },
-                        areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1, [{offset:0, color:'rgba(239,68,68,0.01)'},{offset:1, color:'rgba(239,68,68,0.24)'}]) }
-                    }
-                ],
-                tooltip: {
-                    trigger: 'axis',
-                    backgroundColor: isDark ? '#1e293b' : '#ffffff',
-                    borderColor: isDark ? '#334155' : '#e2e8f0',
-                    textStyle: { color: isDark ? '#f8fafc' : '#0f172a', fontFamily: 'IBM Plex Mono' },
-                    axisPointer: { lineStyle: { color: '#475569', width: 1 } },
-                    formatter: params => {
-                        const mS  = params.find(p => p.seriesName === 'Master');
-                        const dS  = params.find(p => p.seriesName === 'Dub');
-                        const m   = mS?.value ?? 0;
-                        const d   = -(dS?.value ?? 0);
-                        const idx = mS?.dataIndex ?? '';
-                        const diff    = Math.abs(m - d).toFixed(3);
-                        const diffPct = m > 0 ? ((Math.abs(m - d) / m) * 100).toFixed(1) : '—';
-                        const lbl = chart._waveMode || 'value';
-                        return `<div style="font-size:11px;line-height:1.6">
-                            <b style="color:#e2e8f0">Point ${idx}</b>
-                            <span style="color:#64748b;font-size:9px"> ${lbl}</span><br/>
-                            <span style="color:#93c5fd">▲ Master: ${m.toFixed(3)}</span><br/>
-                            <span style="color:#fcd34d">▼ Dub:    ${d.toFixed(3)}</span><br/>
-                            <span style="color:#94a3b8">  Δ:      ${diff} (${diffPct}%)</span>
-                        </div>`;
-                    }
+                    large: true, largeThreshold: 500, z: 2
+                },
+                // Dub — negative [-1,0], fills up to zero
+                {
+                    name: 'Dub', type: 'line', data: waveD,
+                    symbol: 'none',
+                    lineStyle: { color: '#f59e0b', width: 1.2, opacity: 0.95 },
+                    areaStyle: {
+                        origin: 0,
+                        color: { type: 'linear', x: 0, y: 1, x2: 0, y2: 0,
+                            colorStops: [
+                                { offset: 0, color: 'rgba(245,158,11,0.35)' },
+                                { offset: 1, color: 'rgba(245,158,11,0.03)' }
+                            ]
+                        }
+                    },
+                    large: true, largeThreshold: 500, z: 2
                 }
-            });
+            ],
+            legend: { show: false },
+            tooltip: {
+                trigger: 'axis',
+                backgroundColor: '#1e293b',
+                borderColor: '#334155',
+                padding: [8, 12],
+                textStyle: { color: '#cbd5e1', fontSize: 11, fontFamily: 'IBM Plex Mono' },
+                axisPointer: { lineStyle: { color: '#475569', width: 1 } },
+                formatter: params => {
+                    const mS  = params.find(p => p.seriesName === 'Master');
+                    const dS  = params.find(p => p.seriesName === 'Dub');
+                    const m   = mS?.value ?? 0;
+                    const d   = -(dS?.value ?? 0);
+                    const idx = mS?.dataIndex ?? '';
+                    const diff    = Math.abs(m - d).toFixed(3);
+                    const diffPct = m > 0 ? ((Math.abs(m - d) / m) * 100).toFixed(1) : '—';
+                    const lbl = chart._waveMode || 'value';
+                    return `<div style="font-size:11px;line-height:1.6">
+                        <b style="color:#e2e8f0">Point ${idx}</b>
+                        <span style="color:#64748b;font-size:9px"> ${lbl}</span><br/>
+                        <span style="color:#93c5fd">▲ Master: ${m.toFixed(3)}</span><br/>
+                        <span style="color:#fcd34d">▼ Dub:    ${d.toFixed(3)}</span><br/>
+                        <span style="color:#94a3b8">  Δ:      ${diff} (${diffPct}%)</span>
+                    </div>`;
+                }
+            }
+        });
 
-            const ro = new ResizeObserver(() => chart.resize());
-            ro.observe(document.getElementById('echartWave'));
-        }
-    </script>
+        const ro = new ResizeObserver(() => chart.resize());
+        ro.observe(el);
+    }
+
+    function x(s) {
+        if (s == null) return '—';
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+</script>
 </body>
 </html>
