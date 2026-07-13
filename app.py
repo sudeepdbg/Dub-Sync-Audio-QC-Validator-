@@ -19,6 +19,10 @@ app = Flask(__name__)
 # 1 GB cap — Note: Production deployments must stream this to disk using a WSGI middleware
 app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024
 
+# ── ANTI-CACHING CONFIGURATION ────────────────────────────────────────────────
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.jinja_env.auto_reload = True
+
 # ── CONFIGURATION ──────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -220,7 +224,7 @@ def analyze_segment(y_ref, y_comp, sr):
     lag = np.argmax(corr) - (len(ref_rms) - 1)
     offset_ms = round(float(lag * hop / sr * 1000), 2)
 
-    # ── DNA Match via Windowed Cross-Correlation
+    # ── Match via Windowed Cross-Correlation
     WIN_SEC = 10
     WIN_FRAMES = int(WIN_SEC * sr / hop)
 
@@ -442,7 +446,7 @@ def upload():
 
 if __name__ == '__main__':
     # Debug mode + 0.0.0.0 exposes Werkzeug's interactive debugger on the network,
-    # which is a remote code execution risk. Both are now opt-in via env vars so a
+    # which is a risk. Both are now opt-in via env vars so a
     # careless `python app.py` in a shared/production environment is safe by default.
     debug_mode = os.environ.get("SYNC_ENGINE_DEBUG", "false").lower() == "true"
     host = os.environ.get("SYNC_ENGINE_HOST", "127.0.0.1")
