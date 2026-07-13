@@ -61,13 +61,19 @@
         .btn-primary { background: var(--brand); color: #fff; border: none; padding: 10px 24px; border-radius: 8px; font-family: var(--sans); font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap; transition: opacity .15s, transform .1s; }
         .btn-primary:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
         .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
-        
+
         .btn-ghost { background: none; color: var(--muted); border: 1px solid var(--border); padding: 8px 15px; border-radius: 8px; font-family: var(--sans); font-size: 12px; font-weight: 600; cursor: pointer; transition: color .18s, border-color .18s; }
         .btn-ghost:hover { color: var(--danger); border-color: var(--danger); }
-        
+        .btn-ghost:disabled { opacity: .35; cursor: not-allowed; }
+        .btn-ghost:disabled:hover { color: var(--muted); border-color: var(--border); }
+
         .btn-download { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-bd); padding: 8px 15px; border-radius: 8px; font-family: var(--sans); font-size: 12px; font-weight: 700; cursor: pointer; display: none; align-items: center; gap: 6px; transition: background .15s; }
         .btn-download.on { display: flex; }
         .btn-download:hover { background: #e6fbf4; }
+
+        .btn-light { background: var(--brand-dim); color: var(--brand); border: 1px solid #c7d9fb; padding: 8px 15px; border-radius: 8px; font-family: var(--sans); font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background .15s; }
+        .btn-light:hover:not(:disabled) { background: #e2eaff; }
+        .btn-light:disabled { opacity: .35; cursor: not-allowed; }
 
         /* ── SUMMARY BAR ── */
         .sum-bar { display: none; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 13px 20px; margin-bottom: 20px; gap: 24px; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
@@ -92,6 +98,11 @@
         .err strong { color: var(--danger); font-size: 13px; }
         .err pre { margin-top: 7px; font-size: 11px; font-family: var(--mono); color: #7f1d1d; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow-y: auto; }
 
+        /* ── TOAST ── */
+        .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--text); color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 12px; font-weight: 600; font-family: var(--sans); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 999; }
+        .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .toast.bad { background: var(--danger); }
+
         /* ── RESULT CARD ── */
         .rc { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 14px rgba(0,0,0,0.03); }
         .rc.ec { border-color: var(--danger-bd); background: var(--danger-bg); }
@@ -103,6 +114,8 @@
         .bp { background: var(--success-bg); color: #065f46; border: 1px solid var(--success-bd); }
         .bf { background: var(--danger-bg);  color: #991b1b; border: 1px solid var(--danger-bd); }
         .be { background: var(--warn-bg);    color: #92400e; border: 1px solid var(--warn-bd); }
+
+        .warn-strip { background: var(--warn-bg); border: 1px solid var(--warn-bd); border-radius: 8px; padding: 9px 14px; margin-bottom: 14px; font-size: 11px; color: #92400e; font-family: var(--mono); }
 
         /* ── 5-METRIC GRID ── */
         .sg { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 14px; }
@@ -169,7 +182,8 @@
             <div class="tagline">Temporal offset · Drift · Speed factor · Onset DNA · True Peak · Phase · Frame rates</div>
         </div>
         <div class="top-actions">
-            <button class="btn-download" id="topDlBtn" onclick="downloadReport()">📊 Download JSON Report</button>
+            <button class="btn-download" id="topDlBtn" onclick="downloadReport()">📊 Full JSON</button>
+            <button class="btn-light" id="lightDlBtn" onclick="downloadLightReport()" disabled>📄 Light Report</button>
             <button class="btn-ghost" onclick="wipeCache()">Clear Cache</button>
         </div>
     </div>
@@ -218,6 +232,8 @@
     <div id="results"></div>
 </div>
 
+<div class="toast" id="toast"></div>
+
 <script>
     let currentRawData = null;
     const _charts = {};
@@ -240,10 +256,29 @@
         el.textContent = (multi && f.length > 1) ? `${f.length} files selected` : f[0].name;
     }
 
+    function showToast(msg, isError = false) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.classList.toggle('bad', isError);
+        t.classList.add('on');
+        clearTimeout(t._timer);
+        t._timer = setTimeout(() => t.classList.remove('on'), 2800);
+    }
+
     async function wipeCache() {
         if (!confirm('Clear all session data from the server?')) return;
-        await fetch('/wipe', { method: 'POST' });
-        location.reload();
+        try {
+            const res = await fetch('/wipe', { method: 'POST' });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.ok === false) {
+                showToast(`Clear cache failed: ${data.error || res.status}`, true);
+                return;
+            }
+            showToast('Server cache cleared');
+            setTimeout(() => location.reload(), 600);
+        } catch (e) {
+            showToast(`Clear cache failed: ${e.message}`, true);
+        }
     }
 
     function setLoading(on, msg = 'Running QC Engine…') {
@@ -251,7 +286,10 @@
         document.getElementById('loadMsg').textContent = msg;
         document.getElementById('runBtn').disabled = on;
         document.getElementById('errBanner').classList.remove('on');
-        if (on) document.getElementById('topDlBtn').classList.remove('on');
+        if (on) {
+            document.getElementById('topDlBtn').classList.remove('on');
+            document.getElementById('lightDlBtn').disabled = true;
+        }
     }
 
     function showError(detail) {
@@ -296,6 +334,36 @@
         dlAnchor.remove();
     }
 
+    // Strips the four waveform point-arrays (the bulk of report size) and keeps
+    // only the numeric insights — status, offsets, drift, DNA, speed, levels, meta.
+    function downloadLightReport() {
+        if (!currentRawData) return;
+        const results = currentRawData.results || [];
+        const light = {
+            generated: new Date().toISOString(),
+            summary: {
+                total: results.length,
+                passed: results.filter(r => r.status === 'PASS').length,
+                failed: results.filter(r => r.status !== 'PASS').length
+            },
+            results: results.map(r => {
+                if (r.error) return { filename: r.filename, status: r.status, reason: r.reason };
+                const {
+                    wave_rms_master, wave_rms_dub, wave_raw_master, wave_raw_dub,
+                    ...lightR
+                } = r;
+                return lightR;
+            })
+        };
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(light, null, 2));
+        const a = document.createElement('a');
+        a.href = dataStr;
+        a.download = `sync_qc_light_report_${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+
     function renderAll(data) {
         const results = data.results || [];
         const passed  = results.filter(r => r.status === 'PASS').length;
@@ -303,10 +371,10 @@
         document.getElementById('sumPass').textContent  = passed;
         document.getElementById('sumFail').textContent  = results.length - passed;
         document.getElementById('sumBar').classList.add('on');
-        
-        // Show download button at top bar permanently once data is loaded
+
         if (results.length > 0) {
             document.getElementById('topDlBtn').classList.add('on');
+            document.getElementById('lightDlBtn').disabled = false;
         }
 
         const container = document.getElementById('results');
@@ -346,6 +414,27 @@
             return `<span class="${n > threshold ? 'al' : ''}">${val ?? '—'}</span>`;
         };
 
+        // Vocal DNA badge reflects whether HPSS/LUFS actually succeeded, not just
+        // whether it was requested — a silent fallback shouldn't look identical
+        // to a real vocal-isolated score.
+        let dnaLbl = 'Onset DNA';
+        if (r.vocal_filter) {
+            dnaLbl += r.vocal_filter_applied
+                ? ' <span style="color:var(--brand);font-size:8px">▲ HPSS</span>'
+                : ' <span style="color:var(--warn);font-size:8px" title="HPSS/LUFS failed — score computed on unfiltered audio">▲ FALLBACK</span>';
+        }
+
+        const warnings = [];
+        if (r.vocal_filter && !r.vocal_filter_applied) {
+            warnings.push('Vocal DNA filter requested but failed — DNA score uses unfiltered audio.');
+        }
+        if (r.vocal_filter && !r.lufs_normalized) {
+            warnings.push('LUFS normalization failed prior to filtering — levels may be inconsistent.');
+        }
+        if (r.duration_mismatch) {
+            warnings.push('Reference and dub durations differ significantly — drift/speed figures may be unreliable.');
+        }
+
         div.className = 'rc';
         div.innerHTML = `
             <div class="rc-head">
@@ -355,6 +444,8 @@
                 </div>
                 <span class="badge ${isPass ? 'bp' : 'bf'}">${r.status}</span>
             </div>
+
+            ${warnings.length ? `<div class="warn-strip">⚠ ${warnings.map(x).join(' &nbsp;·&nbsp; ')}</div>` : ''}
 
             <div class="sg">
                 <div class="sb ${offAl ? 'al' : ''}">
@@ -366,7 +457,7 @@
                     <div class="sb-val">${r.total_drift_ms}ms</div>
                 </div>
                 <div class="sb ${dnaAl ? 'al' : ''}">
-                    <div class="sb-lbl">Onset DNA${r.vocal_filter ? ' <span style="color:var(--brand);font-size:8px">▲ HPSS</span>' : ''}</div>
+                    <div class="sb-lbl">${dnaLbl}</div>
                     <div class="sb-val">${r.dna_match}%</div>
                 </div>
                 <div class="sb">
@@ -426,8 +517,12 @@
                 <table class="mt">
                     <thead><tr><th>Property</th><th>Master Reference</th><th>Comparison Dub</th></tr></thead>
                     <tbody>
+                        <tr class="${r.duration_mismatch ? 'mm' : ''}">
+                            <td>Duration${r.duration_mismatch ? ' ⚠' : ''}</td>
+                            <td>${x(r.ref_meta?.duration)}</td>
+                            <td>${x(r.comp_meta?.duration)}</td>
+                        </tr>
                         <tr><td>Sample Rate</td><td>${x(r.ref_meta?.sr)}</td><td>${x(r.comp_meta?.sr)}</td></tr>
-                        <tr><td>Duration</td><td>${x(r.ref_meta?.duration)}</td><td>${x(r.comp_meta?.duration)}</td></tr>
                         <tr class="${r.chan_mismatch ? 'mm' : ''}">
                             <td>Channels${r.chan_mismatch ? ' ⚠' : ''}</td>
                             <td>${x(r.ref_meta?.channel_label)}</td>
@@ -452,7 +547,7 @@
                     <div class="wave-title">
                         <strong>Waveform Comparison</strong>
                         &nbsp;·&nbsp; Mirrored dual-track · First 60s
-                        ${r.vocal_filter ? ' &nbsp;·&nbsp; HPSS filtered' : ''}
+                        ${r.vocal_filter_applied ? ' &nbsp;·&nbsp; HPSS filtered' : ''}
                     </div>
                     <div class="wave-tabs">
                         <button class="wave-tab active" id="tab-rms-${i}" onclick="switchWave(${i},'rms')">RMS Envelope</button>
