@@ -62,7 +62,11 @@ def butter_bandpass(data, lowcut, highcut, fs, order=2):
 
 def apply_vocal_filter(y: np.ndarray) -> np.ndarray:
     """Vocal DNA Filter — isolates percussive transient signatures."""
-    _, y_perc = librosa.effects.hpss(y)
+    try:
+        _, y_perc = librosa.effects.hpss(y)
+    except Exception:
+        y_perc = y  # Fallback if HPSS fails
+        
     nyq  = 0.5 * PERFORMANCE_SR
     b, a = butter(2, [300 / nyq, 3400 / nyq], btype='band')
     return lfilter(b, a, y_perc)
@@ -81,7 +85,7 @@ def normalize_visual(y):
 def rms_envelope(y, target_pts=2000):
     """Compute smoothed energy curve resampled to fixed coordinates."""
     rms = librosa.feature.rms(y=y, hop_length=64)[0].astype(np.float64)
-    if len(rms) != target_pts:
+    if len(rms) != target_pts and len(rms) > 1:
         rms = resample_poly(rms, up=target_pts, down=len(rms)).astype(np.float64)
         rms = rms[:target_pts]
     peak = np.max(rms)
@@ -107,7 +111,9 @@ def get_file_metadata(path):
         return {
             "sr":            info.samplerate,
             "duration_sec":  info.duration,
-            "channel_label": ("Stereo" if info.channels == 2 else "Mono" if info.channels == 1 else f"{info.channels} Ch"),
+            "channel_label": ("Stereo" if info.channels == 2 
+                             else "Mono" if info.channels == 1 
+                             else f"{info.channels} Ch"),
             "format":        info.format,
         }
     except Exception:
@@ -115,7 +121,7 @@ def get_file_metadata(path):
 
 def true_peak_db(data: np.ndarray, rate: int) -> float:
     try:
-        tp    = pyln.meter.true_peak(data, rate)
+        tp = pyln.meter.true_peak(data, rate)
         return float(20 * np.log10(np.max(np.abs(tp)) + 1e-10))
     except Exception:
         pass
@@ -175,6 +181,9 @@ def analyze_segment(y_ref, y_comp, sr):
     comp_onset = librosa.onset.onset_strength(y=y_comp, sr=sr, hop_length=hop)
 
     min_len    = min(len(ref_onset), len(comp_onset))
+    if min_len == 0:
+        return offset_ms, 0.0
+        
     ref_onset  = ref_onset[:min_len]
     comp_onset = comp_onset[:min_len]
 
@@ -191,9 +200,9 @@ def analyze_segment(y_ref, y_comp, sr):
         c_norm = c_win  / (np.linalg.norm(c_win)  + 1e-10)
 
         xcorr = signal.correlate(r_norm, c_norm, mode='same')
-        window_scores.append(float(np.max(xcorr)))
+        window_scores.append(float(np.max(xcorr)) if len(xcorr) > 0 else 0.0)
 
-    dna_score = round(float(np.median(window_scores)) * 100, 1)
+    dna_score = round(float(np.median(window_scores)) * 100, 1) if window_scores else 0.0
     return offset_ms, max(0.0, min(100.0, dna_score))
 
 def determine_status(offset_ms, drift_ms, dna_score):
@@ -209,21 +218,29 @@ def determine_status(offset_ms, drift_ms, dna_score):
             "; ".join(issues) if issues else "All metrics within standard operational thresholds.")
 
 # ── PER-FILE WORKER ────────────────────────────────────────────────────────────
-def process_file(f, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw, ref_meta, ref_levels, vocal_logic):
+def process_file(f, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw, 
+                 ref_meta, ref_levels, vocal_logic):
+    """
+    Process a single comparison file and return results in frontend-expected format.
+    """
     if not f or not f.filename:
         return None
 
     if not allowed_file(f.filename):
-        return {"filename": f.filename, "verdict": "FAIL", "verdict_reason": f"Unsupported type.", "error": True}
+        return {"filename": f.filename, "verdict": "FAIL", 
+                "verdict_reason": f"Unsupported type.", "error": True}
+    
     try:
         f_path    = os.path.join(root, secure_filename(f.filename))
         f.save(f_path)
+        
         comp_meta = get_file_metadata(f_path)
         comp_levels = scan_levels(f_path)
         comp_dur  = comp_meta["duration_sec"]
 
         y_c_s, _ = load_segment(f_path, PERFORMANCE_SR, duration=SEGMENT_DURATION)
-        y_c_e, _ = load_segment(f_path, PERFORMANCE_SR, offset=max(0.0, comp_dur - SEGMENT_DURATION))
+        y_c_e, _ = load_segment(f_path, PERFORMANCE_SR, 
+                                offset=max(0.0, comp_dur - SEGMENT_DURATION))
 
         y_c_s_raw = y_c_s.copy()
 
@@ -238,7 +255,7 @@ def process_file(f, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw, ref_meta, ref_lev
         e_off, _   = analyze_segment(y_ref_e_an, y_c_e_an, PERFORMANCE_SR)
         drift      = round(e_off - s_off, 2)
 
-        # Compute raw clock ratio scalar expected by the chart calculation line
+        # Compute speed factor
         drift_sec = drift / 1000.0
         speed_val = float(comp_dur / (comp_dur + drift_sec + 1e-10))
 
@@ -254,25 +271,27 @@ def process_file(f, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw, ref_meta, ref_lev
             "phase_health":   calculate_phase(f_path),
             "speed_factor":   round(speed_val, 6),
             
-            # Flattened structural fields explicitly parsed by index.html template matrix
+            # Flattened metadata for frontend
             "master_sample_rate": ref_meta["sr"],
             "dub_sample_rate":    comp_meta["sr"],
-            "master_duration":     ref_meta["duration_sec"],
-            "dub_duration":        comp_meta["duration_sec"],
-            "master_channels":     ref_meta["channel_label"],
-            "dub_channels":        comp_meta["channel_label"],
-            "master_format":       ref_meta["format"],
-            "dub_format":          comp_meta["format"],
-            "master_loudness":     ref_levels["lufs"],
-            "dub_loudness":        comp_levels["lufs"],
-            "master_peak":         ref_levels["peak"],
-            "dub_peak":            comp_levels["peak"],
-            "master_true_peak":    ref_levels["true_peak"],
-            "dub_true_peak":       comp_levels["true_peak"],
+            "master_duration":    ref_meta["duration_sec"],
+            "dub_duration":       comp_meta["duration_sec"],
+            "master_channels":    ref_meta["channel_label"],
+            "dub_channels":       comp_meta["channel_label"],
+            "master_format":      ref_meta["format"],
+            "dub_format":         comp_meta["format"],
+            
+            # Flattened levels
+            "master_loudness":    ref_levels["lufs"],
+            "dub_loudness":       comp_levels["lufs"],
+            "master_peak":        ref_levels["peak"],
+            "dub_peak":           comp_levels["peak"],
+            "master_true_peak":   ref_levels["true_peak"],
+            "dub_true_peak":      comp_levels["true_peak"],
 
-            # EChart rendering payload arrays
+            # Waveform data for charts
             "master_rms_envelope": rms_envelope(y_ref_s_raw).tolist(),
-            "dub_rms_envelope":    rms_envelope(y_c_s_raw).tolist(),
+            "dub_rms_envelope":    (-rms_envelope(y_c_s_raw)).tolist(),
             "master_raw_peaks":    downsample_waveform(np.abs(normalize_visual(y_ref_s_raw))),
             "dub_raw_peaks":       downsample_waveform(np.abs(normalize_visual(y_c_s_raw)))
         }
@@ -282,7 +301,8 @@ def process_file(f, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw, ref_meta, ref_lev
         return result
 
     except Exception as err:
-        return {"filename": f.filename, "verdict": "FAIL", "verdict_reason": str(err), "error": True}
+        return {"filename": f.filename, "verdict": "FAIL", 
+                "verdict_reason": str(err), "error": True}
 
 # ── ROUTES ─────────────────────────────────────────────────────────────────────
 @app.route('/')
@@ -296,28 +316,30 @@ def upload():
     os.makedirs(root, exist_ok=True)
 
     try:
-        # Match template's optional high-pass configuration flag name
-        vocal_logic = request.form.get('vocal_dna') == 'on' or request.form.get('vocal_logic') == 'true'
+        # Match form field names from index.html
+        vocal_logic = request.form.get('vocal_dna') == 'on'
         
-        # Match structural form component names 'master_file' and 'dub_files' from index.html
+        # Match form field names: 'master_file' and 'dub_files'
         ref   = request.files.get('master_file')
         comps = request.files.getlist('dub_files')
 
-        if not ref:
+        if not ref or not ref.filename:
             return jsonify({"error": "No master reference file provided"}), 400
-        if not comps or len(comps) == 0 or comps[0].filename == '':
+        if not comps or len(comps) == 0 or not comps[0].filename:
             return jsonify({"error": "No comparison dub file provided"}), 400
         if not allowed_file(ref.filename):
-            return jsonify({"error": f"Master file extension not supported."}), 400
+            return jsonify({"error": "Master file extension not supported."}), 400
 
         ref_path  = os.path.join(root, secure_filename(ref.filename))
         ref.save(ref_path)
-        ref_meta  = get_file_metadata(ref_path)
+        
+        ref_meta   = get_file_metadata(ref_path)
         ref_levels = scan_levels(ref_path)
-        total_dur = ref_meta["duration_sec"]
+        total_dur  = ref_meta["duration_sec"]
 
         y_ref_s, _ = load_segment(ref_path, PERFORMANCE_SR, duration=SEGMENT_DURATION)
-        y_ref_e, _ = load_segment(ref_path, PERFORMANCE_SR, offset=max(0.0, total_dur - SEGMENT_DURATION))
+        y_ref_e, _ = load_segment(ref_path, PERFORMANCE_SR, 
+                                  offset=max(0.0, total_dur - SEGMENT_DURATION))
 
         y_ref_s_raw = y_ref_s.copy()
 
@@ -331,8 +353,9 @@ def upload():
         results_map = {}
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
             futures = {
-                pool.submit(process_file, f, root, y_ref_s_an, y_ref_e_an, 
-                            y_ref_s_raw, ref_meta, ref_levels, vocal_logic): i
+                pool.submit(process_file, f, root, 
+                           y_ref_s_an, y_ref_e_an, y_ref_s_raw,
+                           ref_meta, ref_levels, vocal_logic): i
                 for i, f in enumerate(comps)
             }
             for future in as_completed(futures):
@@ -345,7 +368,6 @@ def upload():
         del y_ref_s, y_ref_e, y_ref_s_raw, y_ref_s_an, y_ref_e_an
         gc.collect()
 
-        # Wrap array response object for the frontend dashboard extractor routine
         return jsonify({"results": results})
 
     except Exception:
