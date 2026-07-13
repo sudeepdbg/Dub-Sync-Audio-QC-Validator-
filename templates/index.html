@@ -220,7 +220,7 @@
             
             display.style.display = 'block';
             target.innerText = "Initializing Single-Pass Processing Pipelines...";
-            dlBtn.classList.remove('visible'); // Hide button on new run
+            dlBtn.classList.remove('visible'); 
 
             const formData = new FormData();
             formData.append('reference', document.getElementById('reference').files[0]);
@@ -233,7 +233,7 @@
 
             try {
                 const response = await fetch('/upload', { method: 'POST', body: formData });
-                const data = await response.getJson ? await response.json() : await response.json();
+                const data = await response.json();
                 
                 if (data.error) {
                     target.innerText = `Error: ${data.error}`;
@@ -243,12 +243,12 @@
                 currentPayload = data;
                 target.innerText = JSON.stringify(data, null, 4);
 
-                // ── REVEAL THE DOWNLOAD BUTTON ONCE DATA EXISTS ──
+                // Reveal button on successful payload delivery
                 if (data.results && data.results.length > 0) {
                     dlBtn.classList.add('visible');
                 }
 
-            </style> catch (err) {
+            } catch (err) {
                 target.innerText = `Fatal Exception: ${err.message}`;
             }
         }
