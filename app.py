@@ -17,7 +17,7 @@ from flask import Flask, request, jsonify, render_template
 
 app = Flask(__name__)
 # 1 GB cap — Note: Production deployments must stream this to disk using a WSGI middleware
-app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  
+app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024
 
 # ── CONFIGURATION ──────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -26,9 +26,13 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 PERFORMANCE_SR = 22050
 WAVEFORM_MAX_POINTS = 2000
-SEGMENT_DURATION = 60       
+SEGMENT_DURATION = 60
 MAX_WORKERS = 4
 ALLOWED_EXTENSIONS = {'.wav', '.mp3', '.flac', '.aac', '.ogg', '.m4a', '.aiff', '.aif', '.opus'}
+
+# Duration mismatch beyond this is flagged — segment-based drift analysis assumes
+# ref/comp cover roughly the same programme length.
+DURATION_MISMATCH_THRESHOLD_SEC = 2.0
 
 FRAME_RATES = {
     "23.976": 23.976,
@@ -58,22 +62,32 @@ def allowed_file(filename: str) -> bool:
         return False
     return os.path.splitext(filename.lower())[1] in ALLOWED_EXTENSIONS
 
-def apply_vocal_filter(y: np.ndarray) -> np.ndarray:
+def apply_vocal_filter(y: np.ndarray):
+    """
+    Returns (filtered_audio, applied: bool). `applied` is False whenever HPSS
+    failed and we silently fell back to the unfiltered signal — callers must
+    surface this to the report rather than assuming the requested flag means
+    the filter actually ran.
+    """
     try:
         _, y_perc = librosa.effects.hpss(y)
     except Exception:
-        y_perc = y  # Fallback if signal is too short or uniform for HPSS
-        
-    nyq = 0.5 * PERFORMANCE_SR
-    b, a = butter(2, [300 / nyq, 3400 / nyq], btype='band')
-    return lfilter(b, a, y_perc)
+        return y, False
+
+    try:
+        nyq = 0.5 * PERFORMANCE_SR
+        b, a = butter(2, [300 / nyq, 3400 / nyq], btype='band')
+        return lfilter(b, a, y_perc), True
+    except Exception:
+        return y_perc, False
 
 def normalize_lufs(y, sr, target=-23.0):
+    """Returns (normalized_audio, applied: bool)."""
     try:
         meter = pyln.Meter(sr)
-        return pyln.normalize.loudness(y, meter.integrated_loudness(y), target)
+        return pyln.normalize.loudness(y, meter.integrated_loudness(y), target), True
     except Exception:
-        return y
+        return y, False
 
 def normalize_visual(y):
     m = np.max(np.abs(y))
@@ -113,15 +127,18 @@ def true_peak_db(mono_data: np.ndarray) -> str:
 # ── SINGLE-PASS INGESTION & PROCESSING ENGINE ──────────────────────────────────
 def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DURATION):
     """
-    Optimized Processing Architecture:
-    Reads the file sequentially in a single pass to collect metadata, 
-    calculates metrics on downsampled blocks, and extracts analytics windows.
+    Streams the file once via SoundFile.blocks() to compute level/phase stats,
+    then loads the start/end analysis segments through librosa. Note this is
+    "single-pass" for the block-level stats only — the start/end segment loads
+    below are a second (partial) read, since librosa.load doesn't accept the
+    block-streaming iterator we use for stats. Kept as two lightweight reads
+    rather than a full second decode of the whole file.
     """
     info = sf.info(path)
     native_sr = info.samplerate
     total_duration = info.duration
     channels = info.channels
-    
+
     channel_label = "Stereo" if channels == 2 else "Mono" if channels == 1 else f"{channels} Ch"
     meta = {
         "sr": f"{native_sr} Hz",
@@ -139,15 +156,14 @@ def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DU
     cross_prod = 0.0
     var_m1 = 0.0
     var_m2 = 0.0
-    
-    # Read block-by-block to compute statistics efficiently
+
     with sf.SoundFile(path) as f:
         for block in f.blocks(blocksize=65536, dtype='float32'):
             mono = np.mean(block, axis=1) if block.ndim > 1 else block
             block_max = np.max(np.abs(mono))
             if block_max > max_val:
                 max_val = block_max
-            
+
             if channels >= 2:
                 ch1 = block[:, 0]
                 ch2 = block[:, 1]
@@ -156,7 +172,7 @@ def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DU
                 var_m2 += np.sum(ch2 ** 2)
 
     sample_peak_db = 20 * np.log10(max_val)
-    
+
     # Process Phase Correlation Status
     if channels < 2:
         phase_str = "1.0 (Mono)"
@@ -168,9 +184,9 @@ def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DU
 
     # Load high-efficiency processing slices using kaiser_fast
     y_start, _ = librosa.load(path, sr=target_sr, offset=0.0, duration=seg_dur, res_type='kaiser_fast')
-    
+
     if total_duration > seg_dur:
-        y_end, _ = librosa.load(path, sr=target_sr, offset=max(0.0, total_duration - seg_dur), 
+        y_end, _ = librosa.load(path, sr=target_sr, offset=max(0.0, total_duration - seg_dur),
                                 duration=seg_dur, res_type='kaiser_fast')
     else:
         y_end = y_start
@@ -186,7 +202,7 @@ def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DU
     levels = {
         "lufs": lufs_str,
         "peak": f"{round(sample_peak_db, 2)} dBFS",
-        "true_peak": true_peak_db(y_start) # Compute on segment to preserve I/O cycles
+        "true_peak": true_peak_db(y_start)  # Compute on segment to preserve I/O cycles
     }
 
     return meta, levels, phase_str, y_start, y_end
@@ -214,7 +230,7 @@ def analyze_segment(y_ref, y_comp, sr):
     min_len = min(len(ref_onset), len(comp_onset))
     if min_len == 0:
         return offset_ms, 0.0
-        
+
     ref_onset = ref_onset[:min_len]
     comp_onset = comp_onset[:min_len]
 
@@ -229,7 +245,7 @@ def analyze_segment(y_ref, y_comp, sr):
 
         r_norm_denom = np.linalg.norm(r_win)
         c_norm_denom = np.linalg.norm(c_win)
-        
+
         r_norm = r_win / (r_norm_denom + 1e-10)
         c_norm = c_win / (c_norm_denom + 1e-10)
 
@@ -263,7 +279,7 @@ def calculate_speed_factor(start_offset_ms, end_offset_ms, duration_sec):
         "action": action,
     }
 
-def determine_status(offset_ms, drift_ms, dna_score):
+def determine_status(offset_ms, drift_ms, dna_score, duration_mismatch=False):
     issues = []
     if abs(offset_ms) > 80:
         issues.append(f"Start offset {offset_ms}ms exceeds ±80ms threshold")
@@ -271,6 +287,8 @@ def determine_status(offset_ms, drift_ms, dna_score):
         issues.append(f"Drift {drift_ms}ms exceeds ±150ms threshold")
     if dna_score < 80:
         issues.append(f"DNA match {dna_score}% below 80% threshold")
+    if duration_mismatch:
+        issues.append("Reference/dub duration mismatch — drift figures may be unreliable")
 
     return ("FAIL" if issues else "PASS", "; ".join(issues) if issues else "All metrics within thresholds")
 
@@ -278,15 +296,21 @@ def determine_status(offset_ms, drift_ms, dna_score):
 def process_file(filename, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw, ref_meta, vocal_logic):
     try:
         f_path = os.path.join(root, filename)
-        
+
         # Execute single-pass analysis
         comp_meta, levels, phase, y_c_s, y_c_e = process_audio_single_pass(f_path)
         comp_dur = comp_meta["duration_sec"]
         y_c_s_raw = y_c_s.copy()
 
+        vocal_applied = False
+        lufs_applied = False
         if vocal_logic:
-            y_c_s_an = apply_vocal_filter(normalize_lufs(y_c_s, PERFORMANCE_SR))
-            y_c_e_an = apply_vocal_filter(normalize_lufs(y_c_e, PERFORMANCE_SR))
+            y_c_s_norm, lufs_ok_s = normalize_lufs(y_c_s, PERFORMANCE_SR)
+            y_c_s_an, vocal_ok_s = apply_vocal_filter(y_c_s_norm)
+            y_c_e_norm, lufs_ok_e = normalize_lufs(y_c_e, PERFORMANCE_SR)
+            y_c_e_an, vocal_ok_e = apply_vocal_filter(y_c_e_norm)
+            vocal_applied = vocal_ok_s and vocal_ok_e
+            lufs_applied = lufs_ok_s and lufs_ok_e
         else:
             y_c_s_an = y_c_s
             y_c_e_an = y_c_e
@@ -296,7 +320,9 @@ def process_file(filename, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw, ref_meta, 
         drift = round(e_off - s_off, 2)
 
         speed = calculate_speed_factor(s_off, e_off, comp_dur)
-        status, reason = determine_status(s_off, drift, dna)
+
+        duration_mismatch = abs(ref_meta["duration_sec"] - comp_dur) > DURATION_MISMATCH_THRESHOLD_SEC
+        status, reason = determine_status(s_off, drift, dna, duration_mismatch)
 
         result = {
             "filename": filename,
@@ -308,11 +334,14 @@ def process_file(filename, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw, ref_meta, 
             "drift_frames": ms_to_frames(drift),
             "dna_match": dna,
             "vocal_filter": vocal_logic,
+            "vocal_filter_applied": vocal_applied if vocal_logic else False,
+            "lufs_normalized": lufs_applied if vocal_logic else False,
             "speed_factor": speed,
             "phase": phase,
             "levels": levels,
             "ref_meta": ref_meta,
             "comp_meta": comp_meta,
+            "duration_mismatch": duration_mismatch,
             "wave_rms_master": rms_envelope(y_ref_s_raw).tolist(),
             "wave_rms_dub": (-rms_envelope(y_c_s_raw)).tolist(),
             "wave_raw_master": downsample_waveform(np.abs(normalize_visual(y_ref_s_raw))),
@@ -330,6 +359,18 @@ def process_file(filename, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw, ref_meta, 
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/wipe', methods=['POST'])
+def wipe():
+    """Clears all session data from the data/ directory."""
+    try:
+        for folder in os.listdir(DATA_DIR):
+            path = os.path.join(DATA_DIR, folder)
+            if os.path.isdir(path) and folder.startswith("SES_"):
+                shutil.rmtree(path, ignore_errors=True)
+        return jsonify({"ok": True})
+    except Exception as err:
+        return jsonify({"ok": False, "error": str(err)}), 500
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -352,14 +393,16 @@ def upload():
         ref_secure_name = secure_filename(ref.filename)
         ref_path = os.path.join(root, ref_secure_name)
         ref.save(ref_path)
-        
+
         # Single-pass parsing of Master file
         ref_meta, ref_levels, ref_phase, y_ref_s, y_ref_e = process_audio_single_pass(ref_path)
         y_ref_s_raw = y_ref_s.copy()
 
         if vocal_logic:
-            y_ref_s_an = apply_vocal_filter(normalize_lufs(y_ref_s, PERFORMANCE_SR))
-            y_ref_e_an = apply_vocal_filter(normalize_lufs(y_ref_e, PERFORMANCE_SR))
+            y_ref_s_norm, _ = normalize_lufs(y_ref_s, PERFORMANCE_SR)
+            y_ref_s_an, _ = apply_vocal_filter(y_ref_s_norm)
+            y_ref_e_norm, _ = normalize_lufs(y_ref_e, PERFORMANCE_SR)
+            y_ref_e_an, _ = apply_vocal_filter(y_ref_e_norm)
         else:
             y_ref_s_an = y_ref_s
             y_ref_e_an = y_ref_e
@@ -375,8 +418,8 @@ def upload():
         results_map = {}
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
             futures = {
-                pool.submit(process_file, fname, root, y_ref_s_an, y_ref_e_an, 
-                            y_ref_s_raw, ref_meta, vocal_logic): i 
+                pool.submit(process_file, fname, root, y_ref_s_an, y_ref_e_an,
+                            y_ref_s_raw, ref_meta, vocal_logic): i
                 for i, fname in enumerate(valid_comp_filenames)
             }
             for future in as_completed(futures):
@@ -386,7 +429,7 @@ def upload():
                     results_map[idx] = res
 
         results = [results_map[i] for i in sorted(results_map)]
-        
+
         del y_ref_s, y_ref_e, y_ref_s_raw, y_ref_s_an, y_ref_e_an
         gc.collect()
 
@@ -398,4 +441,10 @@ def upload():
         return jsonify({"error": traceback.format_exc()}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    # Debug mode + 0.0.0.0 exposes Werkzeug's interactive debugger on the network,
+    # which is a remote code execution risk. Both are now opt-in via env vars so a
+    # careless `python app.py` in a shared/production environment is safe by default.
+    debug_mode = os.environ.get("SYNC_ENGINE_DEBUG", "false").lower() == "true"
+    host = os.environ.get("SYNC_ENGINE_HOST", "127.0.0.1")
+    port = int(os.environ.get("SYNC_ENGINE_PORT", "5001"))
+    app.run(debug=debug_mode, host=host, port=port)
