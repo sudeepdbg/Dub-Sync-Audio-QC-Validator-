@@ -38,6 +38,7 @@
         .logo .accent { color: var(--brand); }
         .logo .ver { font-size: 10px; font-weight: 500; color: var(--muted); font-family: var(--mono); background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
         .tagline { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: var(--mono); }
+        .top-actions { display: flex; gap: 10px; align-items: center; }
 
         /* ── PANEL ── */
         .panel {
@@ -60,10 +61,13 @@
         .btn-primary { background: var(--brand); color: #fff; border: none; padding: 10px 24px; border-radius: 8px; font-family: var(--sans); font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap; transition: opacity .15s, transform .1s; }
         .btn-primary:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
         .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+        
         .btn-ghost { background: none; color: var(--muted); border: 1px solid var(--border); padding: 8px 15px; border-radius: 8px; font-family: var(--sans); font-size: 12px; font-weight: 600; cursor: pointer; transition: color .18s, border-color .18s; }
         .btn-ghost:hover { color: var(--danger); border-color: var(--danger); }
-        .btn-sec { background: #fff; color: var(--brand); border: 1px solid var(--brand); padding: 10px 20px; border-radius: 8px; font-family: var(--sans); font-weight: 700; font-size: 13px; cursor: pointer; transition: background .15s; margin-left: auto; display: flex; align-items: center; gap: 6px; }
-        .btn-sec:hover { background: var(--brand-dim); }
+        
+        .btn-download { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-bd); padding: 8px 15px; border-radius: 8px; font-family: var(--sans); font-size: 12px; font-weight: 700; cursor: pointer; display: none; align-items: center; gap: 6px; transition: background .15s; }
+        .btn-download.on { display: flex; }
+        .btn-download:hover { background: #e6fbf4; }
 
         /* ── SUMMARY BAR ── */
         .sum-bar { display: none; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 13px 20px; margin-bottom: 20px; gap: 24px; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
@@ -110,11 +114,10 @@
         .sb.al .sb-val { color: var(--danger); }
         .sb.wn .sb-val { color: var(--warn); }
 
-        /* ── INFO STRIPS (frame rates + speed) ── */
+        /* ── INFO STRIPS ── */
         .info-strip { background: #f5f8ff; border: 1px solid #dbeafe; border-radius: 10px; padding: 13px 16px; margin-bottom: 13px; }
         .strip-title { font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--brand); font-family: var(--mono); margin-bottom: 11px; }
 
-        /* Frame rate table */
         table.fr { width: 100%; border-collapse: collapse; }
         table.fr th { font-size: 9px; font-weight: 700; letter-spacing: 1.1px; text-transform: uppercase; color: var(--muted); font-family: var(--mono); padding: 0 0 8px 0; text-align: center; border-bottom: 1px solid #dbeafe; }
         table.fr th:first-child { text-align: left; }
@@ -123,7 +126,6 @@
         table.fr td.al { color: var(--danger); }
         table.fr .unit { font-size: 9px; color: var(--muted); font-weight: 400; }
 
-        /* Speed strip */
         .speed-row { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
         .speed-cell .slbl { font-size: 9px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: var(--brand); font-family: var(--mono); margin-bottom: 4px; }
         .speed-cell .sval { font-size: 16px; font-weight: 700; font-family: var(--mono); color: var(--text); }
@@ -150,7 +152,6 @@
         .wave-foot { display: flex; gap: 16px; align-items: center; padding: 6px 14px; background: #f1f5f9; border-top: 1px solid var(--border); flex-wrap: wrap; }
         .wl { display: flex; align-items: center; gap: 7px; font-size: 11px; font-family: var(--mono); color: var(--muted); }
         .wd { width: 20px; height: 2px; border-radius: 1px; }
-        .wave-note { font-size: 10px; color: var(--muted); font-family: var(--mono); margin-left: auto; font-style: italic; }
         .wave-desc { font-size: 10px; color: var(--muted); font-family: var(--mono); font-style: italic; }
 
         @media (max-width: 720px) {
@@ -167,7 +168,10 @@
             <div class="logo">🎧 Sync Engine <span class="accent">Pro</span> <span class="ver">v6</span></div>
             <div class="tagline">Temporal offset · Drift · Speed factor · Onset DNA · True Peak · Phase · Frame rates</div>
         </div>
-        <button class="btn-ghost" onclick="wipeCache()">Clear Cache</button>
+        <div class="top-actions">
+            <button class="btn-download" id="topDlBtn" onclick="downloadReport()">📊 Download JSON Report</button>
+            <button class="btn-ghost" onclick="wipeCache()">Clear Cache</button>
+        </div>
     </div>
 
     <div class="panel">
@@ -198,7 +202,6 @@
         <div class="ss ok"><div class="v" id="sumPass">—</div><div class="l">Passed</div></div>
         <div class="sd"></div>
         <div class="ss bad"><div class="v" id="sumFail">—</div><div class="l">Failed / Error</div></div>
-        <button class="btn-sec" onclick="downloadReport()">📊 Download JSON Report</button>
     </div>
 
     <div id="loader">
@@ -216,11 +219,9 @@
 </div>
 
 <script>
-    // Global variable cache for reports download capability
     let currentRawData = null;
     const _charts = {};
 
-    // Text escaping utility to block inline HTML payloads from JSON safely
     function x(str) {
         if (str === null || str === undefined) return '';
         return String(str)
@@ -250,6 +251,7 @@
         document.getElementById('loadMsg').textContent = msg;
         document.getElementById('runBtn').disabled = on;
         document.getElementById('errBanner').classList.remove('on');
+        if (on) document.getElementById('topDlBtn').classList.remove('on');
     }
 
     function showError(detail) {
@@ -301,6 +303,12 @@
         document.getElementById('sumPass').textContent  = passed;
         document.getElementById('sumFail').textContent  = results.length - passed;
         document.getElementById('sumBar').classList.add('on');
+        
+        // Show download button at top bar permanently once data is loaded
+        if (results.length > 0) {
+            document.getElementById('topDlBtn').classList.add('on');
+        }
+
         const container = document.getElementById('results');
         container.innerHTML = '';
         results.forEach((r, i) => renderCard(r, i, container));
@@ -603,7 +611,6 @@
         });
     }
 
-    // Force ECharts contexts to adapt to runtime window layout changes gracefully
     window.addEventListener('resize', () => {
         Object.values(_charts).forEach(chart => { if (chart) chart.resize(); });
     });
