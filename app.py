@@ -196,11 +196,13 @@ def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DU
         phase_str = f"{round(corr, 2)} ({status})"
 
     # Load high-efficiency processing slices using kaiser_fast
-    y_start, _ = librosa.load(path, sr=target_sr, offset=0.0, duration=seg_dur, res_type='kaiser_fast')
+    # line ~199
+y_start, _ = librosa.load(path, sr=target_sr, offset=0.0,
+                          duration=seg_dur, res_type='soxr_hq')
 
-    if total_duration > seg_dur:
-        y_end, _ = librosa.load(path, sr=target_sr, offset=max(0.0, total_duration - seg_dur),
-                                duration=seg_dur, res_type='kaiser_fast')
+# the y_end load a few lines below
+y_end, _ = librosa.load(path, sr=target_sr, offset=max(0.0, total_duration - seg_dur),
+                        duration=seg_dur, res_type='soxr_hq')
     else:
         y_end = y_start
 
