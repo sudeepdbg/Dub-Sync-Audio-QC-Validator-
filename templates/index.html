@@ -9,6 +9,7 @@
         :root {
             --brand:      #2f6ef5;
             --brand-dim:  rgba(47,110,245,0.07);
+            --brand-sec:  #7c3aed;
             --bg:         #eef1f7;
             --card:       #ffffff;
             --text:       #0d1526;
@@ -23,6 +24,9 @@
             --warn:       #d97706;
             --warn-bg:    #fffbeb;
             --warn-bd:    #fcd34d;
+            --info:       #0369a1;
+            --info-bg:    #f0f9ff;
+            --info-bd:    #bae6fd;
             --mono: 'IBM Plex Mono', monospace;
             --sans: 'IBM Plex Sans', sans-serif;
         }
@@ -30,15 +34,15 @@
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html { font-size: 14px; }
         body { font-family: var(--sans); background: var(--bg); color: var(--text); padding: 32px 24px; min-height: 100vh; }
-        .page { max-width: 1100px; margin: 0 auto; }
+        .page { max-width: 1200px; margin: 0 auto; }
 
         /* ── TOP BAR ── */
-        .topbar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+        .topbar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
         .logo { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; display: flex; align-items: baseline; gap: 6px; }
         .logo .accent { color: var(--brand); }
         .logo .ver { font-size: 10px; font-weight: 500; color: var(--muted); font-family: var(--mono); background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
         .tagline { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: var(--mono); }
-        .top-actions { display: flex; gap: 10px; align-items: center; }
+        .top-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
         /* ── PANEL ── */
         .panel {
@@ -61,21 +65,22 @@
         .btn-primary { background: var(--brand); color: #fff; border: none; padding: 10px 24px; border-radius: 8px; font-family: var(--sans); font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap; transition: opacity .15s, transform .1s; }
         .btn-primary:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
         .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
-        
+
         .btn-ghost { background: none; color: var(--muted); border: 1px solid var(--border); padding: 8px 15px; border-radius: 8px; font-family: var(--sans); font-size: 12px; font-weight: 600; cursor: pointer; transition: color .18s, border-color .18s; }
         .btn-ghost:hover { color: var(--danger); border-color: var(--danger); }
-        
+
         .btn-download { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-bd); padding: 8px 15px; border-radius: 8px; font-family: var(--sans); font-size: 12px; font-weight: 700; cursor: pointer; display: none; align-items: center; gap: 6px; transition: background .15s; }
         .btn-download.on { display: flex; }
         .btn-download:hover { background: #e6fbf4; }
 
         /* ── SUMMARY BAR ── */
-        .sum-bar { display: none; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 13px 20px; margin-bottom: 20px; gap: 24px; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+        .sum-bar { display: none; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 13px 20px; margin-bottom: 20px; gap: 24px; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.04); flex-wrap: wrap; }
         .sum-bar.on { display: flex; }
         .ss .v { font-size: 22px; font-weight: 700; font-family: var(--mono); line-height: 1; }
         .ss .l { font-size: 9px; font-weight: 700; letter-spacing: 1.3px; color: var(--muted); text-transform: uppercase; margin-top: 2px; font-family: var(--mono); }
         .ss.ok .v { color: var(--success); }
         .ss.bad .v { color: var(--danger); }
+        .ss.warn .v { color: var(--warn); }
         .sd { width: 1px; height: 28px; background: var(--border); }
 
         /* ── LOADER ── */
@@ -95,7 +100,7 @@
         /* ── RESULT CARD ── */
         .rc { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 14px rgba(0,0,0,0.03); }
         .rc.ec { border-color: var(--danger-bd); background: var(--danger-bg); }
-        .rc-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+        .rc-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
         .rc-head h3 { font-size: 14px; font-weight: 700; font-family: var(--mono); word-break: break-all; }
         .rc-head .rsub { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
 
@@ -104,15 +109,23 @@
         .bf { background: var(--danger-bg);  color: #991b1b; border: 1px solid var(--danger-bd); }
         .be { background: var(--warn-bg);    color: #92400e; border: 1px solid var(--warn-bd); }
 
-        /* ── 5-METRIC GRID ── */
-        .sg { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 14px; }
+        /* ── 6-METRIC GRID (expanded) ── */
+        .sg { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 14px; }
         .sb { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 8px; text-align: center; }
         .sb.al { background: var(--danger-bg); border-color: var(--danger-bd); }
         .sb.wn { background: var(--warn-bg);   border-color: var(--warn-bd); }
+        .sb.info { background: var(--info-bg); border-color: var(--info-bd); }
         .sb-lbl { font-size: 9px; font-weight: 700; letter-spacing: 1.2px; color: var(--muted); text-transform: uppercase; margin-bottom: 7px; font-family: var(--mono); }
-        .sb-val { font-size: 16px; font-weight: 700; font-family: var(--mono); color: var(--text); }
+        .sb-val { font-size: 15px; font-weight: 700; font-family: var(--mono); color: var(--text); }
         .sb.al .sb-val { color: var(--danger); }
         .sb.wn .sb-val { color: var(--warn); }
+        .sb.info .sb-val { color: var(--info); }
+        .sb-sub { font-size: 9px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+
+        /* ── CONFIDENCE BADGE ── */
+        .conf-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 9px; font-family: var(--mono); color: var(--muted); background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; margin-left: 4px; }
+        .conf-badge.high { color: var(--success); border-color: var(--success-bd); background: var(--success-bg); }
+        .conf-badge.low { color: var(--warn); border-color: var(--warn-bd); background: var(--warn-bg); }
 
         /* ── INFO STRIPS ── */
         .info-strip { background: #f5f8ff; border: 1px solid #dbeafe; border-radius: 10px; padding: 13px 16px; margin-bottom: 13px; }
@@ -125,6 +138,7 @@
         table.fr td:first-child { font-size: 11px; font-weight: 500; color: var(--muted); text-align: left; }
         table.fr td.al { color: var(--danger); }
         table.fr .unit { font-size: 9px; color: var(--muted); font-weight: 400; }
+        .ci-text { font-size: 9px; color: var(--muted); font-family: var(--mono); display: block; margin-top: 2px; }
 
         .speed-row { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
         .speed-cell .slbl { font-size: 9px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: var(--brand); font-family: var(--mono); margin-bottom: 4px; }
@@ -141,7 +155,7 @@
 
         /* ── WAVEFORM ── */
         .wave-wrap { border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
-        .wave-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; background: var(--bg); border-bottom: 1px solid var(--border); }
+        .wave-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; background: var(--bg); border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 8px; }
         .wave-title { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; font-family: var(--mono); color: var(--muted); }
         .wave-title strong { color: var(--text); }
         .wave-tabs { display: flex; gap: 4px; }
@@ -154,19 +168,33 @@
         .wd { width: 20px; height: 2px; border-radius: 1px; }
         .wave-desc { font-size: 10px; color: var(--muted); font-family: var(--mono); font-style: italic; }
 
+        /* ── DNA COMPARISON STRIP ── */
+        .dna-strip { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 13px; }
+        .dna-card { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; }
+        .dna-card .dna-title { font-size: 9px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); font-family: var(--mono); margin-bottom: 6px; }
+        .dna-card .dna-val { font-size: 20px; font-weight: 700; font-family: var(--mono); color: var(--text); }
+        .dna-card .dna-desc { font-size: 10px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+        .dna-card.primary { border-color: var(--brand); background: var(--brand-dim); }
+        .dna-card.secondary { border-color: var(--brand-sec); background: rgba(124,58,237,0.05); }
+
+        @media (max-width: 900px) {
+            .sg { grid-template-columns: repeat(3, 1fr); }
+            .dna-strip { grid-template-columns: 1fr; }
+        }
         @media (max-width: 720px) {
             .panel { flex-direction: column; align-items: stretch; }
             .sg { grid-template-columns: repeat(2, 1fr); }
         }
     </style>
+<base target="_blank">
 </head>
 <body>
 <div class="page">
 
     <div class="topbar">
         <div>
-            <div class="logo">🎧 Sync Engine <span class="accent">Pro</span> <span class="ver">v6</span></div>
-            <div class="tagline">Temporal offset · Drift · Speed factor · Onset DNA · True Peak · Phase · Frame rates</div>
+            <div class="logo">🎧 Sync Engine <span class="accent">Pro</span> <span class="ver">v7</span></div>
+            <div class="tagline">Temporal offset · Drift · Speed factor · Onset DNA · Chroma DNA · True Peak · Phase · Confidence</div>
         </div>
         <div class="top-actions">
             <button class="btn-download" id="topDlBtn" onclick="downloadReport()">📊 Download JSON Report</button>
@@ -201,13 +229,15 @@
         <div class="sd"></div>
         <div class="ss ok"><div class="v" id="sumPass">—</div><div class="l">Passed</div></div>
         <div class="sd"></div>
+        <div class="ss warn"><div class="v" id="sumWarn">—</div><div class="l">Warnings</div></div>
+        <div class="sd"></div>
         <div class="ss bad"><div class="v" id="sumFail">—</div><div class="l">Failed / Error</div></div>
     </div>
 
     <div id="loader">
         <div class="spin"></div>
         <div class="lm" id="loadMsg">Running QC Engine…</div>
-        <div class="ls">Analyzing onset DNA, drift &amp; levels. Large files may take a moment.</div>
+        <div class="ls">Analyzing onset DNA, chroma DNA, drift &amp; levels. Large files may take a moment.</div>
     </div>
 
     <div class="err" id="errBanner">
@@ -299,12 +329,15 @@
     function renderAll(data) {
         const results = data.results || [];
         const passed  = results.filter(r => r.status === 'PASS').length;
+        const warned  = results.filter(r => r.status === 'WARN').length;
+        const failed  = results.filter(r => r.status === 'FAIL' || r.status === 'ERROR').length;
+
         document.getElementById('sumTotal').textContent = results.length;
         document.getElementById('sumPass').textContent  = passed;
-        document.getElementById('sumFail').textContent  = results.length - passed;
+        document.getElementById('sumWarn').textContent  = warned;
+        document.getElementById('sumFail').textContent  = failed;
         document.getElementById('sumBar').classList.add('on');
-        
-        // Show download button at top bar permanently once data is loaded
+
         if (results.length > 0) {
             document.getElementById('topDlBtn').classList.add('on');
         }
@@ -312,6 +345,17 @@
         const container = document.getElementById('results');
         container.innerHTML = '';
         results.forEach((r, i) => renderCard(r, i, container));
+    }
+
+    // ── CONFIDENCE HELPERS ──
+    function renderConfidence(ci, unit) {
+        if (!ci || !Array.isArray(ci) || ci.length < 2) return '';
+        const [low, high] = ci;
+        const range = Math.abs(high - low);
+        const isHigh = range < (unit === 'ms' ? 20 : 5); // tight CI = high confidence
+        const cls = isHigh ? 'high' : 'low';
+        const label = isHigh ? 'High' : 'Low';
+        return `<span class="conf-badge ${cls}" title="${label} confidence: ${low} to ${high} ${unit}">±${label}</span>`;
     }
 
     function renderCard(r, i, container) {
@@ -333,10 +377,13 @@
         const offAl   = Math.abs(r.offset_ms)      > 80;
         const driftAl = Math.abs(r.total_drift_ms) > 150;
         const dnaAl   = r.dna_match < 80;
+        const chromaAl = (r.chroma_dna || 0) < 80;
         const sf      = r.speed_factor  || {};
         const lv      = r.levels        || {};
         const of      = r.offset_frames || {};
         const df      = r.drift_frames  || {};
+        const offCI   = r.offset_confidence || null;
+        const dnaCI   = r.dna_confidence || null;
 
         const sfDelta = parseFloat(sf.delta) || 0;
         const sfClass = Math.abs(sfDelta) > 0.05 ? 'wn' : '';
@@ -356,10 +403,12 @@
                 <span class="badge ${r.status === 'PASS' ? 'bp' : (r.status === 'WARN' ? 'be' : 'bf')}">${r.status}</span>
             </div>
 
+            <!-- 6-METRIC GRID -->
             <div class="sg">
                 <div class="sb ${offAl ? 'al' : ''}">
                     <div class="sb-lbl">Start Offset</div>
-                    <div class="sb-val">${r.offset_ms}ms</div>
+                    <div class="sb-val">${r.offset_ms}ms ${renderConfidence(offCI, 'ms')}</div>
+                    <div class="sb-sub">${offCI ? `CI: [${offCI[0]}, ${offCI[1]}]` : ''}</div>
                 </div>
                 <div class="sb ${driftAl ? 'al' : ''}">
                     <div class="sb-lbl">Total Drift</div>
@@ -367,7 +416,13 @@
                 </div>
                 <div class="sb ${dnaAl ? 'al' : ''}">
                     <div class="sb-lbl">Onset DNA${r.vocal_filter ? ' <span style="color:var(--brand);font-size:8px">▲ HPSS</span>' : ''}</div>
-                    <div class="sb-val">${r.dna_match}%</div>
+                    <div class="sb-val">${r.dna_match}% ${renderConfidence(dnaCI, '%')}</div>
+                    <div class="sb-sub">${dnaCI ? `CI: [${dnaCI[0]}, ${dnaCI[1]}]` : ''}</div>
+                </div>
+                <div class="sb ${chromaAl ? 'wn' : ''}">
+                    <div class="sb-lbl">Chroma DNA</div>
+                    <div class="sb-val">${r.chroma_dna ?? '—'}%</div>
+                    <div class="sb-sub">Spectral similarity</div>
                 </div>
                 <div class="sb">
                     <div class="sb-lbl">Phase Health</div>
@@ -379,6 +434,21 @@
                 </div>
             </div>
 
+            <!-- DNA COMPARISON STRIP -->
+            <div class="dna-strip">
+                <div class="dna-card primary">
+                    <div class="dna-title">🎯 Onset DNA Match</div>
+                    <div class="dna-val">${r.dna_match}%</div>
+                    <div class="dna-desc">Temporal alignment via onset strength cross-correlation. Best for percussive/transient-rich content.</div>
+                </div>
+                <div class="dna-card secondary">
+                    <div class="dna-title">🎵 Chroma DNA Match</div>
+                    <div class="dna-val">${r.chroma_dna ?? 'N/A'}%</div>
+                    <div class="dna-desc">Spectral alignment via chromagram cross-correlation. Better for music/dialogue hybrid content.</div>
+                </div>
+            </div>
+
+            <!-- TIMING IN FRAMES -->
             <div class="info-strip">
                 <div class="strip-title">⏱ Timing in Frames</div>
                 <table class="fr">
@@ -407,6 +477,7 @@
                 </table>
             </div>
 
+            <!-- SPEED FACTOR -->
             <div class="info-strip">
                 <div class="strip-title">⚙ Clock Speed Analysis</div>
                 <div class="speed-row">
@@ -422,6 +493,7 @@
                 </div>
             </div>
 
+            <!-- META TABLE -->
             <div class="meta-wrap">
                 <table class="mt">
                     <thead><tr><th>Property</th><th>Master Reference</th><th>Comparison Dub</th></tr></thead>
@@ -447,6 +519,7 @@
                 </table>
             </div>
 
+            <!-- WAVEFORM -->
             <div class="wave-wrap">
                 <div class="wave-head">
                     <div class="wave-title">
