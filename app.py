@@ -1,6 +1,7 @@
 import os
 import gc
 import uuid
+import math
 import shutil
 import numpy as np
 import librosa
@@ -17,7 +18,7 @@ from flask import Flask, request, jsonify, render_template
 
 app = Flask(__name__)
 # 1 GB cap — Note: Production deployments must stream this to disk using a WSGI middleware
-app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  
+app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024
 
 # ── CONFIGURATION ──────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -26,9 +27,12 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 PERFORMANCE_SR = 22050
 WAVEFORM_MAX_POINTS = 2000
-SEGMENT_DURATION = 60       
+SEGMENT_DURATION = 60
 MAX_WORKERS = 4
 ALLOWED_EXTENSIONS = {'.wav', '.mp3', '.flac', '.aac', '.ogg', '.m4a', '.aiff', '.aif', '.opus'}
+
+# Clips shorter than this lack enough material for reliable temporal alignment
+MIN_RELIABLE_DURATION_SEC = 3.0
 
 FRAME_RATES = {
     "23.976": 23.976,
@@ -53,6 +57,19 @@ def _cleanup_worker():
 threading.Thread(target=_cleanup_worker, daemon=True).start()
 
 # ── HELPERS ────────────────────────────────────────────────────────────────────
+def sanitize_json(obj):
+    """Recursively convert numpy scalar types to native python and replace
+    NaN / +Inf / -Inf floats with None so Flask emits STRICT, browser-parseable JSON."""
+    if isinstance(obj, dict):
+        return {k: sanitize_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [sanitize_json(v) for v in obj]
+    if isinstance(obj, np.generic):
+        obj = obj.item()
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
+    return obj
+
 def allowed_file(filename: str) -> bool:
     if not filename:
         return False
@@ -63,15 +80,27 @@ def apply_vocal_filter(y: np.ndarray) -> np.ndarray:
         _, y_perc = librosa.effects.hpss(y)
     except Exception:
         y_perc = y  # Fallback if signal is too short or uniform for HPSS
-        
+
     nyq = 0.5 * PERFORMANCE_SR
     b, a = butter(2, [300 / nyq, 3400 / nyq], btype='band')
-    return lfilter(b, a, y_perc)
+    out = lfilter(b, a, y_perc)
+    return np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
 
 def normalize_lufs(y, sr, target=-23.0):
     try:
+        if y is None or len(y) == 0:
+            return y
         meter = pyln.Meter(sr)
-        return pyln.normalize.loudness(y, meter.integrated_loudness(y), target)
+        loudness = meter.integrated_loudness(y)
+        # pyloudnorm returns -inf/nan for too-short, silent, or sub-gating-threshold
+        # audio. Applying gain against -inf yields infinite gain -> NaN-poisoned
+        # signal that breaks JSON and librosa. Skip normalization in that case.
+        if not np.isfinite(loudness):
+            return y
+        out = pyln.normalize.loudness(y, loudness, target)
+        if not np.all(np.isfinite(out)):
+            out = np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0)
+        return out.astype(np.float32)
     except Exception:
         return y
 
@@ -114,14 +143,14 @@ def true_peak_db(mono_data: np.ndarray) -> str:
 def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DURATION):
     """
     Optimized Processing Architecture:
-    Reads the file sequentially in a single pass to collect metadata, 
+    Reads the file sequentially in a single pass to collect metadata,
     calculates metrics on downsampled blocks, and extracts analytics windows.
     """
     info = sf.info(path)
     native_sr = info.samplerate
     total_duration = info.duration
     channels = info.channels
-    
+
     channel_label = "Stereo" if channels == 2 else "Mono" if channels == 1 else f"{channels} Ch"
     meta = {
         "sr": f"{native_sr} Hz",
@@ -139,7 +168,7 @@ def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DU
     cross_prod = 0.0
     var_m1 = 0.0
     var_m2 = 0.0
-    
+
     # Read block-by-block to compute statistics efficiently
     with sf.SoundFile(path) as f:
         for block in f.blocks(blocksize=65536, dtype='float32'):
@@ -147,7 +176,7 @@ def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DU
             block_max = np.max(np.abs(mono))
             if block_max > max_val:
                 max_val = block_max
-            
+
             if channels >= 2:
                 ch1 = block[:, 0]
                 ch2 = block[:, 1]
@@ -156,21 +185,21 @@ def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DU
                 var_m2 += np.sum(ch2 ** 2)
 
     sample_peak_db = 20 * np.log10(max_val)
-    
+
     # Process Phase Correlation Status
     if channels < 2:
         phase_str = "1.0 (Mono)"
     else:
         denom = np.sqrt(var_m1 * var_m2)
         corr = float(cross_prod / denom) if denom > 0 else 0.0
-        status = "Healthy" if corr > 0.4 else "🚩 Issue"
+        status = "Healthy" if corr > 0.4 else "\U0001F6A9 Issue"
         phase_str = f"{round(corr, 2)} ({status})"
 
     # Load high-efficiency processing slices using kaiser_fast
     y_start, _ = librosa.load(path, sr=target_sr, offset=0.0, duration=seg_dur, res_type='kaiser_fast')
-    
+
     if total_duration > seg_dur:
-        y_end, _ = librosa.load(path, sr=target_sr, offset=max(0.0, total_duration - seg_dur), 
+        y_end, _ = librosa.load(path, sr=target_sr, offset=max(0.0, total_duration - seg_dur),
                                 duration=seg_dur, res_type='kaiser_fast')
     else:
         y_end = y_start
@@ -179,20 +208,24 @@ def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DU
     try:
         meter = pyln.Meter(target_sr)
         lufs_val = meter.integrated_loudness(y_start)
-        lufs_str = f"{round(lufs_val, 2)} LUFS"
+        lufs_str = f"{round(lufs_val, 2)} LUFS" if np.isfinite(lufs_val) else "N/A"
     except Exception:
         lufs_str = "ERR"
 
     levels = {
         "lufs": lufs_str,
         "peak": f"{round(sample_peak_db, 2)} dBFS",
-        "true_peak": true_peak_db(y_start) # Compute on segment to preserve I/O cycles
+        "true_peak": true_peak_db(y_start)  # Compute on segment to preserve I/O cycles
     }
 
     return meta, levels, phase_str, y_start, y_end
 
 def analyze_segment(y_ref, y_comp, sr):
     hop = 512
+    # Guard: librosa raises "Audio buffer is not finite everywhere" on any NaN/Inf.
+    y_ref  = np.nan_to_num(np.asarray(y_ref,  dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+    y_comp = np.nan_to_num(np.asarray(y_comp, dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+
     # ── OFFSET via RMS Envelope Cross-Correlation
     ref_rms = librosa.feature.rms(y=y_ref,  hop_length=hop)[0].astype(np.float64)
     comp_rms = librosa.feature.rms(y=y_comp, hop_length=hop)[0].astype(np.float64)
@@ -214,7 +247,7 @@ def analyze_segment(y_ref, y_comp, sr):
     min_len = min(len(ref_onset), len(comp_onset))
     if min_len == 0:
         return offset_ms, 0.0
-        
+
     ref_onset = ref_onset[:min_len]
     comp_onset = comp_onset[:min_len]
 
@@ -229,7 +262,7 @@ def analyze_segment(y_ref, y_comp, sr):
 
         r_norm_denom = np.linalg.norm(r_win)
         c_norm_denom = np.linalg.norm(c_win)
-        
+
         r_norm = r_win / (r_norm_denom + 1e-10)
         c_norm = c_win / (c_norm_denom + 1e-10)
 
@@ -238,6 +271,11 @@ def analyze_segment(y_ref, y_comp, sr):
 
     dna_score = round(float(np.median(window_scores)) * 100, 1) if window_scores else 0.0
     dna_score = max(0.0, min(100.0, dna_score))
+
+    if not np.isfinite(offset_ms):
+        offset_ms = 0.0
+    if not np.isfinite(dna_score):
+        dna_score = 0.0
 
     return offset_ms, dna_score
 
@@ -258,7 +296,7 @@ def calculate_speed_factor(start_offset_ms, end_offset_ms, duration_sec):
 
     return {
         "ratio": round(speed_factor, 6),
-        "display": f"{speed_factor:.6f}×",
+        "display": f"{speed_factor:.6f}\u00d7",
         "delta": f"{pct_delta:+.4f}%",
         "action": action,
     }
@@ -266,9 +304,9 @@ def calculate_speed_factor(start_offset_ms, end_offset_ms, duration_sec):
 def determine_status(offset_ms, drift_ms, dna_score):
     issues = []
     if abs(offset_ms) > 80:
-        issues.append(f"Start offset {offset_ms}ms exceeds ±80ms threshold")
+        issues.append(f"Start offset {offset_ms}ms exceeds \u00b180ms threshold")
     if abs(drift_ms) > 150:
-        issues.append(f"Drift {drift_ms}ms exceeds ±150ms threshold")
+        issues.append(f"Drift {drift_ms}ms exceeds \u00b1150ms threshold")
     if dna_score < 80:
         issues.append(f"DNA match {dna_score}% below 80% threshold")
 
@@ -278,7 +316,7 @@ def determine_status(offset_ms, drift_ms, dna_score):
 def process_file(filename, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw, ref_meta, vocal_logic):
     try:
         f_path = os.path.join(root, filename)
-        
+
         # Execute single-pass analysis
         comp_meta, levels, phase, y_c_s, y_c_e = process_audio_single_pass(f_path)
         comp_dur = comp_meta["duration_sec"]
@@ -297,6 +335,18 @@ def process_file(filename, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw, ref_meta, 
 
         speed = calculate_speed_factor(s_off, e_off, comp_dur)
         status, reason = determine_status(s_off, drift, dna)
+
+        # ── SHORT-CLIP GUARD ────────────────────────────────────────────────
+        # Below MIN_RELIABLE_DURATION_SEC there isn't enough material for the
+        # cross-correlation to align meaningfully. Metrics still render, but the
+        # clip is flagged WARN so operators know results are indicative only.
+        ref_dur = ref_meta.get("duration_sec", 0.0)
+        if comp_dur < MIN_RELIABLE_DURATION_SEC or ref_dur < MIN_RELIABLE_DURATION_SEC:
+            status = "WARN"
+            reason = ("Insufficient audio for reliable alignment "
+                      f"(min {MIN_RELIABLE_DURATION_SEC:.0f}s recommended; "
+                      f"reference {round(ref_dur, 2)}s, dub {round(comp_dur, 2)}s). "
+                      "Metrics shown are indicative only.")
 
         result = {
             "filename": filename,
@@ -343,16 +393,16 @@ def upload():
         comps = request.files.getlist('comparison[]')
 
         if not ref or not comps:
-            return jsonify({"error": "Missing mandatory reference or comparison assets"}), 400
+            return jsonify(sanitize_json({"error": "Missing mandatory reference or comparison assets"})), 400
 
         # Validate Master file format before executing storage layer allocations
         if not allowed_file(ref.filename):
-            return jsonify({"error": f"Unsupported master file format: '{os.path.splitext(ref.filename)[1]}'"}), 400
+            return jsonify(sanitize_json({"error": f"Unsupported master file format: '{os.path.splitext(ref.filename)[1]}'"})), 400
 
         ref_secure_name = secure_filename(ref.filename)
         ref_path = os.path.join(root, ref_secure_name)
         ref.save(ref_path)
-        
+
         # Single-pass parsing of Master file
         ref_meta, ref_levels, ref_phase, y_ref_s, y_ref_e = process_audio_single_pass(ref_path)
         y_ref_s_raw = y_ref_s.copy()
@@ -375,8 +425,8 @@ def upload():
         results_map = {}
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
             futures = {
-                pool.submit(process_file, fname, root, y_ref_s_an, y_ref_e_an, 
-                            y_ref_s_raw, ref_meta, vocal_logic): i 
+                pool.submit(process_file, fname, root, y_ref_s_an, y_ref_e_an,
+                            y_ref_s_raw, ref_meta, vocal_logic): i
                 for i, fname in enumerate(valid_comp_filenames)
             }
             for future in as_completed(futures):
@@ -386,16 +436,16 @@ def upload():
                     results_map[idx] = res
 
         results = [results_map[i] for i in sorted(results_map)]
-        
+
         del y_ref_s, y_ref_e, y_ref_s_raw, y_ref_s_an, y_ref_e_an
         gc.collect()
 
-        return jsonify({"results": results})
+        return jsonify(sanitize_json({"results": results}))
 
     except Exception:
         shutil.rmtree(root, ignore_errors=True)
         gc.collect()
-        return jsonify({"error": traceback.format_exc()}), 500
+        return jsonify(sanitize_json({"error": traceback.format_exc()})), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5001)
