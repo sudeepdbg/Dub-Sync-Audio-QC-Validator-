@@ -9,7 +9,6 @@ import soundfile as sf
 import pyloudnorm as pyln
 import threading
 import time
-import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from scipy import signal
 from scipy.signal import butter, lfilter, resample_poly
@@ -33,6 +32,20 @@ ALLOWED_EXTENSIONS = {'.wav', '.mp3', '.flac', '.aac', '.ogg', '.m4a', '.aiff', 
 
 # Clips shorter than this lack enough material for reliable temporal alignment
 MIN_RELIABLE_DURATION_SEC = 3.0
+
+# ── QC GATE THRESHOLDS ──────────────────────────────────────────────────────────
+# Sync/DNA thresholds (unchanged from original logic)
+OFFSET_THRESHOLD_MS = 80
+DRIFT_THRESHOLD_MS = 150
+DNA_MATCH_THRESHOLD = 80
+
+# Loudness / true-peak thresholds — tune these to match your actual delivery spec
+# (EBU R128 uses -23 LUFS / -1 dBTP; ATSC A/85 uses -24 LKFS; Netflix uses -27 LUFS
+# dialogue-gated with its own peak rules). -23 LUFS ±1 LU and -2 dBTP are reasonable
+# generic broadcast-safe defaults but should be confirmed against the actual delivery doc.
+LUFS_TARGET = -23.0
+LUFS_TOLERANCE = 1.0
+TRUE_PEAK_MAX_DBTP = -2.0
 
 FRAME_RATES = {
     "23.976": 23.976,
@@ -130,21 +143,17 @@ def downsample_waveform(y, max_pts=WAVEFORM_MAX_POINTS):
 def ms_to_frames(ms: float) -> dict:
     return {fps_label: round(ms * fps / 1000.0, 2) for fps_label, fps in FRAME_RATES.items()}
 
-def true_peak_db(mono_data: np.ndarray) -> str:
-    """Calculates True Peak using an efficient 4x upsampling path."""
-    try:
-        up = resample_poly(mono_data, up=4, down=1)
-        tp_db = 20 * np.log10(np.max(np.abs(up)) + 1e-10)
-        return f"{round(float(tp_db), 2)} dBTP"
-    except Exception:
-        return "N/A"
-
 # ── SINGLE-PASS INGESTION & PROCESSING ENGINE ──────────────────────────────────
 def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DURATION):
     """
     Optimized Processing Architecture:
     Reads the file sequentially in a single pass to collect metadata,
     calculates metrics on downsampled blocks, and extracts analytics windows.
+
+    True peak and sample peak are both computed across the ENTIRE file during
+    this streaming pass (not just the analysis segment) so that clipping or
+    inter-sample overs anywhere in the file — not only in the first/last
+    SEGMENT_DURATION seconds — are caught by the QC gate.
     """
     info = sf.info(path)
     native_sr = info.samplerate
@@ -164,18 +173,31 @@ def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DU
     }
 
     # Stream file to compute level statistics and phase metrics without high memory overhead
-    max_val = 1e-10
+    max_val = 1e-10          # for sample peak (dBFS)
+    max_true_peak_val = 1e-10  # for true peak (dBTP), across the whole file
     cross_prod = 0.0
     var_m1 = 0.0
     var_m2 = 0.0
 
-    # Read block-by-block to compute statistics efficiently
     with sf.SoundFile(path) as f:
         for block in f.blocks(blocksize=65536, dtype='float32'):
             mono = np.mean(block, axis=1) if block.ndim > 1 else block
+
             block_max = np.max(np.abs(mono))
             if block_max > max_val:
                 max_val = block_max
+
+            # True-peak: 4x oversample each block to detect inter-sample overs across
+            # the whole file. Oversampling per-block (rather than the whole signal at
+            # once) can introduce small edge artifacts at block boundaries, but for a
+            # max-peak detector this is an accepted trade-off for streaming a large file.
+            try:
+                up = resample_poly(mono, up=4, down=1)
+                up_max = np.max(np.abs(up))
+                if up_max > max_true_peak_val:
+                    max_true_peak_val = up_max
+            except Exception:
+                pass
 
             if channels >= 2:
                 ch1 = block[:, 0]
@@ -184,7 +206,8 @@ def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DU
                 var_m1 += np.sum(ch1 ** 2)
                 var_m2 += np.sum(ch2 ** 2)
 
-    sample_peak_db = 20 * np.log10(max_val)
+    sample_peak_db = float(20 * np.log10(max_val))
+    true_peak_val = float(20 * np.log10(max_true_peak_val + 1e-10))
 
     # Process Phase Correlation Status
     if channels < 2:
@@ -195,29 +218,40 @@ def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DU
         status = "Healthy" if corr > 0.4 else "\U0001F6A9 Issue"
         phase_str = f"{round(corr, 2)} ({status})"
 
-    # Load high-efficiency processing slices using kaiser_fast
-    # line ~199
-y_start, _ = librosa.load(path, sr=target_sr, offset=0.0,
-                          duration=seg_dur, res_type='soxr_hq')
+    # Load high-efficiency processing slices using soxr_hq for start/end sync analysis
+    y_start, _ = librosa.load(path, sr=target_sr, offset=0.0,
+                              duration=seg_dur, res_type='soxr_hq')
 
-# the y_end load a few lines below
-y_end, _ = librosa.load(path, sr=target_sr, offset=max(0.0, total_duration - seg_dur),
-                        duration=seg_dur, res_type='soxr_hq')
+    # Only load a separate end segment if the file is long enough that start/end
+    # windows wouldn't overlap; otherwise reuse the start segment (drift will read as 0,
+    # which is correct — there isn't enough material for a meaningful drift measurement).
+    if total_duration > seg_dur * 2:
+        y_end, _ = librosa.load(path, sr=target_sr, offset=max(0.0, total_duration - seg_dur),
+                                duration=seg_dur, res_type='soxr_hq')
     else:
         y_end = y_start
 
     # Compute integrated loudness from the extracted segment
     try:
         meter = pyln.Meter(target_sr)
-        lufs_val = meter.integrated_loudness(y_start)
-        lufs_str = f"{round(lufs_val, 2)} LUFS" if np.isfinite(lufs_val) else "N/A"
+        raw_lufs = meter.integrated_loudness(y_start)
+        if np.isfinite(raw_lufs):
+            lufs_val = float(raw_lufs)
+            lufs_str = f"{round(lufs_val, 2)} LUFS"
+        else:
+            lufs_val = None
+            lufs_str = "N/A"
     except Exception:
+        lufs_val = None
         lufs_str = "ERR"
 
     levels = {
         "lufs": lufs_str,
+        "lufs_val": lufs_val,
         "peak": f"{round(sample_peak_db, 2)} dBFS",
-        "true_peak": true_peak_db(y_start)  # Compute on segment to preserve I/O cycles
+        "peak_val": sample_peak_db,
+        "true_peak": f"{round(true_peak_val, 2)} dBTP",
+        "true_peak_val": true_peak_val,
     }
 
     return meta, levels, phase_str, y_start, y_end
@@ -303,21 +337,35 @@ def calculate_speed_factor(start_offset_ms, end_offset_ms, duration_sec):
         "action": action,
     }
 
-def determine_status(offset_ms, drift_ms, dna_score):
+def determine_status(offset_ms, drift_ms, dna_score, lufs_val=None, true_peak_val=None):
     issues = []
-    if abs(offset_ms) > 80:
-        issues.append(f"Start offset {offset_ms}ms exceeds \u00b180ms threshold")
-    if abs(drift_ms) > 150:
-        issues.append(f"Drift {drift_ms}ms exceeds \u00b1150ms threshold")
-    if dna_score < 80:
-        issues.append(f"DNA match {dna_score}% below 80% threshold")
+    if abs(offset_ms) > OFFSET_THRESHOLD_MS:
+        issues.append(f"Start offset {offset_ms}ms exceeds \u00b1{OFFSET_THRESHOLD_MS}ms threshold")
+    if abs(drift_ms) > DRIFT_THRESHOLD_MS:
+        issues.append(f"Drift {drift_ms}ms exceeds \u00b1{DRIFT_THRESHOLD_MS}ms threshold")
+    if dna_score < DNA_MATCH_THRESHOLD:
+        issues.append(f"DNA match {dna_score}% below {DNA_MATCH_THRESHOLD}% threshold")
+
+    # True peak: catches inter-sample clipping. Computed across the whole file
+    # (see process_audio_single_pass), so this isn't limited to the sync segment.
+    if true_peak_val is not None and true_peak_val > TRUE_PEAK_MAX_DBTP:
+        issues.append(
+            f"True peak {round(true_peak_val, 2)} dBTP exceeds {TRUE_PEAK_MAX_DBTP} dBTP "
+            "ceiling (inter-sample clipping risk)"
+        )
+
+    if lufs_val is not None and abs(lufs_val - LUFS_TARGET) > LUFS_TOLERANCE:
+        issues.append(
+            f"Integrated loudness {round(lufs_val, 2)} LUFS outside "
+            f"{LUFS_TARGET}\u00b1{LUFS_TOLERANCE} LU target"
+        )
 
     return ("FAIL" if issues else "PASS", "; ".join(issues) if issues else "All metrics within thresholds")
 
 # ── WORKER COMPUTE THREAD ──────────────────────────────────────────────────────
-def process_file(filename, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw, ref_meta, vocal_logic):
+def process_file(stored_name, display_name, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw, ref_meta, vocal_logic):
     try:
-        f_path = os.path.join(root, filename)
+        f_path = os.path.join(root, stored_name)
 
         # Execute single-pass analysis
         comp_meta, levels, phase, y_c_s, y_c_e = process_audio_single_pass(f_path)
@@ -336,7 +384,11 @@ def process_file(filename, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw, ref_meta, 
         drift = round(e_off - s_off, 2)
 
         speed = calculate_speed_factor(s_off, e_off, comp_dur)
-        status, reason = determine_status(s_off, drift, dna)
+        status, reason = determine_status(
+            s_off, drift, dna,
+            lufs_val=levels.get("lufs_val"),
+            true_peak_val=levels.get("true_peak_val"),
+        )
 
         # ── SHORT-CLIP GUARD ────────────────────────────────────────────────
         # Below MIN_RELIABLE_DURATION_SEC there isn't enough material for the
@@ -351,7 +403,7 @@ def process_file(filename, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw, ref_meta, 
                       "Metrics shown are indicative only.")
 
         result = {
-            "filename": filename,
+            "filename": display_name,
             "status": status,
             "reason": reason,
             "offset_ms": s_off,
@@ -376,7 +428,7 @@ def process_file(filename, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw, ref_meta, 
         return result
 
     except Exception as err:
-        return {"filename": filename, "status": "ERROR", "reason": str(err), "error": True}
+        return {"filename": display_name, "status": "ERROR", "reason": str(err), "error": True}
 
 # ── ROUTES ─────────────────────────────────────────────────────────────────────
 @app.route('/')
@@ -416,20 +468,25 @@ def upload():
             y_ref_s_an = y_ref_s
             y_ref_e_an = y_ref_e
 
-        # Pre-filter comparison assets on the request thread to discard illegal formats instantly
-        valid_comp_filenames = []
+        # Pre-filter comparison assets on the request thread to discard illegal formats instantly.
+        # Each file is saved under a UUID-prefixed name on disk to avoid collisions when two
+        # different uploads sanitize to the same secure_filename (e.g. "Ep 1 (final).wav" and
+        # "Ep 1 final.wav" both become "Ep_1_final.wav"); the original display name is kept
+        # separately for the response so results are labeled correctly.
+        valid_comp_files = []  # list of (stored_name, display_name)
         for f in comps:
             if f and f.filename and allowed_file(f.filename):
-                sec_name = secure_filename(f.filename)
-                f.save(os.path.join(root, sec_name))
-                valid_comp_filenames.append(sec_name)
+                display_name = secure_filename(f.filename)
+                stored_name = f"{uuid.uuid4().hex[:8]}_{display_name}"
+                f.save(os.path.join(root, stored_name))
+                valid_comp_files.append((stored_name, display_name))
 
         results_map = {}
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
             futures = {
-                pool.submit(process_file, fname, root, y_ref_s_an, y_ref_e_an,
+                pool.submit(process_file, stored_name, display_name, root, y_ref_s_an, y_ref_e_an,
                             y_ref_s_raw, ref_meta, vocal_logic): i
-                for i, fname in enumerate(valid_comp_filenames)
+                for i, (stored_name, display_name) in enumerate(valid_comp_files)
             }
             for future in as_completed(futures):
                 idx = futures[future]
@@ -445,9 +502,17 @@ def upload():
         return jsonify(sanitize_json({"results": results}))
 
     except Exception:
+        # Log full traceback server-side only — never return it to the client,
+        # it leaks file paths, library versions, and internal structure.
+        app.logger.exception("Upload processing failed for session %s", session_id)
         shutil.rmtree(root, ignore_errors=True)
         gc.collect()
-        return jsonify(sanitize_json({"error": traceback.format_exc()})), 500
+        return jsonify(sanitize_json({"error": "Internal processing error. Check server logs for details."})), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    # NEVER run with debug=True and host='0.0.0.0' together: Werkzeug's interactive
+    # debugger exposes an unauthenticated code-execution console to anyone who can
+    # reach the port. Debug mode is opt-in via env var and defaults to loopback-only.
+    debug_mode = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
+    host = os.environ.get('FLASK_HOST', '127.0.0.1')
+    app.run(debug=debug_mode, host=host, port=5001)
