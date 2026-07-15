@@ -10,6 +10,7 @@
             --brand:      #2f6ef5;
             --brand-dim:  rgba(47,110,245,0.07);
             --brand-sec:  #7c3aed;
+            --brand-atmos:#d946ef;
             --bg:         #eef1f7;
             --card:       #ffffff;
             --text:       #0d1526;
@@ -61,6 +62,8 @@
         .tog { display: flex; align-items: center; gap: 7px; padding-bottom: 2px; white-space: nowrap; }
         .tog label { font-size: 13px; font-weight: 600; cursor: pointer; }
         input[type=checkbox] { accent-color: var(--brand); width: 15px; height: 15px; cursor: pointer; }
+        input[type=text] { font-family: var(--mono); font-size: 12px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); width: 100%; color: var(--text); }
+        input[type=text]:focus { outline: none; border-color: var(--brand); }
 
         .btn-primary { background: var(--brand); color: #fff; border: none; padding: 10px 24px; border-radius: 8px; font-family: var(--sans); font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap; transition: opacity .15s, transform .1s; }
         .btn-primary:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
@@ -72,6 +75,11 @@
         .btn-download { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-bd); padding: 8px 15px; border-radius: 8px; font-family: var(--sans); font-size: 12px; font-weight: 700; cursor: pointer; display: none; align-items: center; gap: 6px; transition: background .15s; }
         .btn-download.on { display: flex; }
         .btn-download:hover { background: #e6fbf4; }
+
+        /* ── SECONDARY OPTIONS ROW ── */
+        .panel-2 { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px 22px; display: flex; align-items: flex-end; gap: 18px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); flex-wrap: wrap; }
+        .panel-2 .field { min-width: 180px; flex: 0 1 220px; }
+        .panel-2 .field.grow { flex: 1 1 220px; }
 
         /* ── SUMMARY BAR ── */
         .sum-bar { display: none; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 13px 20px; margin-bottom: 20px; gap: 24px; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.04); flex-wrap: wrap; }
@@ -109,17 +117,29 @@
         .bf { background: var(--danger-bg);  color: #991b1b; border: 1px solid var(--danger-bd); }
         .be { background: var(--warn-bg);    color: #92400e; border: 1px solid var(--warn-bd); }
 
-        /* ── 6-METRIC GRID (expanded) ── */
+        /* ── TABS ── */
+        .tab-bar { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid var(--border); padding-bottom: 2px; }
+        .tab-btn { font-size: 11px; font-weight: 700; font-family: var(--mono); padding: 8px 16px; border-radius: 8px 8px 0 0; cursor: pointer; border: none; background: transparent; color: var(--muted); transition: all .15s; letter-spacing: 0.5px; position: relative; }
+        .tab-btn:hover { color: var(--brand); background: var(--brand-dim); }
+        .tab-btn.active { color: var(--brand); background: var(--brand-dim); }
+        .tab-btn.active::after { content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 2px; background: var(--brand); }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* ── METRIC GRIDS ── */
         .sg { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 14px; }
+        .sg-5 { grid-template-columns: repeat(5, 1fr); }
         .sb { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 8px; text-align: center; }
         .sb.al { background: var(--danger-bg); border-color: var(--danger-bd); }
         .sb.wn { background: var(--warn-bg);   border-color: var(--warn-bd); }
         .sb.info { background: var(--info-bg); border-color: var(--info-bd); }
+        .sb.atmos { background: rgba(217,70,239,0.07); border-color: rgba(217,70,239,0.3); }
         .sb-lbl { font-size: 9px; font-weight: 700; letter-spacing: 1.2px; color: var(--muted); text-transform: uppercase; margin-bottom: 7px; font-family: var(--mono); }
         .sb-val { font-size: 15px; font-weight: 700; font-family: var(--mono); color: var(--text); }
         .sb.al .sb-val { color: var(--danger); }
         .sb.wn .sb-val { color: var(--warn); }
         .sb.info .sb-val { color: var(--info); }
+        .sb.atmos .sb-val { color: var(--brand-atmos); }
         .sb-sub { font-size: 9px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
 
         /* ── CONFIDENCE BADGE ── */
@@ -129,7 +149,11 @@
 
         /* ── INFO STRIPS ── */
         .info-strip { background: #f5f8ff; border: 1px solid #dbeafe; border-radius: 10px; padding: 13px 16px; margin-bottom: 13px; }
+        .info-strip-warn { background: var(--warn-bg); border-color: var(--warn-bd); }
+        .info-strip-danger { background: var(--danger-bg); border-color: var(--danger-bd); }
         .strip-title { font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--brand); font-family: var(--mono); margin-bottom: 11px; }
+        .strip-title-warn { color: var(--warn); }
+        .strip-title-danger { color: var(--danger); }
 
         table.fr { width: 100%; border-collapse: collapse; }
         table.fr th { font-size: 9px; font-weight: 700; letter-spacing: 1.1px; text-transform: uppercase; color: var(--muted); font-family: var(--mono); padding: 0 0 8px 0; text-align: center; border-bottom: 1px solid #dbeafe; }
@@ -177,13 +201,34 @@
         .dna-card.primary { border-color: var(--brand); background: var(--brand-dim); }
         .dna-card.secondary { border-color: var(--brand-sec); background: rgba(124,58,237,0.05); }
 
+        /* ── QC CHECK LIST ── */
+        .qc-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        .qc-item { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+        .qc-item.fail { background: var(--danger-bg); border-color: var(--danger-bd); }
+        .qc-item.warn { background: var(--warn-bg); border-color: var(--warn-bd); }
+        .qc-item.pass { background: var(--success-bg); border-color: var(--success-bd); }
+        .qc-item.info { background: var(--info-bg); border-color: var(--info-bd); }
+        .qc-item.skip { background: var(--bg); border-color: var(--border); opacity: 0.65; }
+        .qc-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+        .qc-text { flex: 1; }
+        .qc-name { font-size: 11px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+        .qc-desc { font-size: 10px; color: var(--muted); line-height: 1.3; }
+        .qc-value { font-size: 11px; font-weight: 700; font-family: var(--mono); color: var(--text); margin-top: 3px; }
+        .qc-value.al { color: var(--danger); }
+        .qc-value.wn { color: var(--warn); }
+
+        /* ── SPECTRUM VISUALIZER ── */
+        .spectrum-box { width: 100%; height: 160px; background: #f8fafc; border-radius: 8px; }
+
         @media (max-width: 900px) {
             .sg { grid-template-columns: repeat(3, 1fr); }
             .dna-strip { grid-template-columns: 1fr; }
+            .qc-list { grid-template-columns: 1fr; }
         }
         @media (max-width: 720px) {
-            .panel { flex-direction: column; align-items: stretch; }
+            .panel, .panel-2 { flex-direction: column; align-items: stretch; }
             .sg { grid-template-columns: repeat(2, 1fr); }
+            .tab-bar { overflow-x: auto; }
         }
     </style>
 <base target="_blank">
@@ -193,8 +238,8 @@
 
     <div class="topbar">
         <div>
-            <div class="logo">🎧 Sync Engine <span class="accent">Pro</span> <span class="ver">v7</span></div>
-            <div class="tagline">Temporal offset · Drift · Speed factor · Onset DNA · Chroma DNA · True Peak · Phase · Confidence</div>
+            <div class="logo">🎧 Sync Engine <span class="accent">Pro</span> <span class="ver">v9</span></div>
+            <div class="tagline">Temporal offset · Drift · Speed factor · Onset DNA · Chroma DNA · True Peak · Phase · Advanced QC</div>
         </div>
         <div class="top-actions">
             <button class="btn-download" id="topDlBtn" onclick="downloadReport()">📊 Download JSON Report</button>
@@ -224,6 +269,24 @@
         <button class="btn-primary" id="runBtn" onclick="runQC()">Run QC Engine</button>
     </div>
 
+    <div class="panel-2">
+        <div class="field">
+            <span class="field-lbl">M&amp;E Stem (optional)</span>
+            <div class="drop">
+                <div class="fname ph" id="meName">For DME check…</div>
+                <input type="file" id="meFile" accept="audio/*" onchange="onPick('meFile','meName',false)">
+            </div>
+        </div>
+        <div class="field grow">
+            <span class="field-lbl">Expected Language (optional, ISO-639-1)</span>
+            <input type="text" id="expectedLang" placeholder="e.g. es, fr, hi — leave blank to just detect" maxlength="8">
+        </div>
+        <div class="tog">
+            <input type="checkbox" id="runAsr">
+            <label for="runAsr" title="Runs speech-to-text (faster-whisper) for language ID and a profanity scan. Adds several seconds per file — off by default.">Run ASR (Language ID + Profanity)</label>
+        </div>
+    </div>
+
     <div class="sum-bar" id="sumBar">
         <div class="ss"><div class="v" id="sumTotal">—</div><div class="l">Processed</div></div>
         <div class="sd"></div>
@@ -251,6 +314,7 @@
 <script>
     let currentRawData = null;
     const _charts = {};
+    const _spectrumCharts = {};
 
     function x(str) {
         if (str === null || str === undefined) return '';
@@ -272,8 +336,13 @@
 
     async function wipeCache() {
         if (!confirm('Clear all session data from the server?')) return;
-        await fetch('/wipe', { method: 'POST' });
-        location.reload();
+        try {
+            const res = await fetch('/wipe', { method: 'POST' });
+            if (!res.ok) throw new Error(`Server returned ${res.status}`);
+            location.reload();
+        } catch (e) {
+            alert(`Failed to clear cache: ${e.message}`);
+        }
     }
 
     function setLoading(on, msg = 'Running QC Engine…') {
@@ -293,17 +362,26 @@
     async function runQC() {
         const ref   = document.getElementById('refFile').files[0];
         const comps = document.getElementById('compFiles').files;
+        const meFile = document.getElementById('meFile').files[0];
+        const runAsr = document.getElementById('runAsr').checked;
+        const expectedLang = document.getElementById('expectedLang').value.trim();
+
         if (!ref)          { alert('Please select a master reference file.'); return; }
         if (!comps.length) { alert('Please select at least one dub file.'); return; }
 
         document.getElementById('results').innerHTML = '';
         document.getElementById('sumBar').classList.remove('on');
-        setLoading(true, `Analyzing ${comps.length} file${comps.length > 1 ? 's' : ''}…`);
+        setLoading(true, runAsr
+            ? `Analyzing ${comps.length} file${comps.length > 1 ? 's' : ''} (ASR enabled — this takes longer)…`
+            : `Analyzing ${comps.length} file${comps.length > 1 ? 's' : ''}…`);
 
         const fd = new FormData();
         fd.append('reference', ref);
         for (const f of comps) fd.append('comparison[]', f);
         fd.append('vocal_logic', document.getElementById('vocalDna').checked);
+        if (meFile) fd.append('me_stem', meFile);
+        fd.append('run_asr', runAsr);
+        if (expectedLang) fd.append('expected_language', expectedLang);
 
         try {
             const res = await fetch('/upload', { method: 'POST', body: fd });
@@ -352,10 +430,124 @@
         if (!ci || !Array.isArray(ci) || ci.length < 2) return '';
         const [low, high] = ci;
         const range = Math.abs(high - low);
-        const isHigh = range < (unit === 'ms' ? 20 : 5); // tight CI = high confidence
+        const isHigh = range < (unit === 'ms' ? 20 : 5);
         const cls = isHigh ? 'high' : 'low';
         const label = isHigh ? 'High' : 'Low';
         return `<span class="conf-badge ${cls}" title="${label} confidence: ${low} to ${high} ${unit}">±${label}</span>`;
+    }
+
+    // ── QC CHECK RENDERER ──
+    // Every check explicitly distinguishes "not run / not applicable" (skip)
+    // from an actual measured pass/warn/fail. A missing value NEVER renders
+    // as a red failure badge.
+    function renderQCChecks(qc) {
+        if (!qc) return '<div style="color:var(--muted);font-size:12px;padding:20px;text-align:center;">Advanced QC checks not available for this file format.</div>';
+
+        const checks = [
+            {
+                key: 'atmos_bed_objects',
+                name: '🎧 Atmos Bed & Objects',
+                desc: 'Verifies fixed bed channels (7.1.2). Object count/position require Dolby Renderer metadata — not measurable via ffprobe.',
+                getStatus: (v) => !v ? 'skip' : (v.verified ? 'pass' : 'skip'),
+                getValue: (v) => !v ? 'Not Atmos-flagged content'
+                    : `${v.bed_count ?? '?'} bed ch. · objects: ${v.object_count === null ? 'not measurable' : v.object_count}`
+            },
+            {
+                key: 'spatial_loudness',
+                name: '📊 Spatial Loudness',
+                desc: 'Loudness measured against the target for immersive/spatial mixes',
+                getStatus: (v) => !v ? 'skip' : (v.within_tolerance ? 'pass' : 'warn'),
+                getValue: (v) => v ? `${v.lufs} LUFS (target ${v.target_lufs})` : 'Not measured'
+            },
+            {
+                key: 'inter_channel_phase',
+                name: '〰️ Inter-Channel Phase',
+                desc: 'Phase correlation between stereo/surround pairs (mono collapse check)',
+                getStatus: (v) => !v ? 'skip' : (v.correlation > 0.4 ? 'pass' : 'fail'),
+                getValue: (v) => v ? `${v.correlation.toFixed(2)}` : 'N/A'
+            },
+            {
+                key: 'digital_clicks',
+                name: '💥 Level Spike Detection',
+                desc: 'Statistical outliers in peak level — coarse indicator, not sample-accurate click detection',
+                getStatus: (v) => !v ? 'skip' : (v.count === 0 ? 'pass' : (v.count < 5 ? 'warn' : 'fail')),
+                getValue: (v) => v ? `${v.count} spikes flagged` : 'Not measured'
+            },
+            {
+                key: 'dropouts',
+                name: '🔇 Dropouts / Silence Gaps',
+                desc: 'Brief signal losses detected via silencedetect',
+                getStatus: (v) => !v ? 'skip' : (v.count === 0 ? 'pass' : (v.count < 3 ? 'warn' : 'fail')),
+                getValue: (v) => v ? `${v.count} detected` : 'Not measured'
+            },
+            {
+                key: 'hum_buzz',
+                name: '⚡ Hum & Buzz Detection',
+                desc: '50Hz (PAL) / 60Hz (NTSC) electrical interference — sampled from first 10s',
+                getStatus: (v) => !v ? 'skip' : (!v.detected ? 'pass' : (v.snr_db > 40 ? 'warn' : 'fail')),
+                getValue: (v) => v?.detected ? `${v.frequency}Hz @ ${v.snr_db}dB SNR` : (v ? 'Clean' : 'Not measured')
+            },
+            {
+                key: 'low_freq_rumble',
+                name: '⬇️ Low-Frequency Rumble',
+                desc: 'Subsonic noise below 20Hz — sampled from first 10s',
+                getStatus: (v) => !v ? 'skip' : (!v.detected ? 'pass' : (v.level_db > -60 ? 'warn' : 'pass')),
+                getValue: (v) => v?.detected ? `${v.level_db}dB @ ${v.freq_peak}Hz` : (v ? 'Clean' : 'Not measured')
+            },
+            {
+                key: 'language_id',
+                name: '🗣️ Language Identification',
+                desc: 'ASR-based detection (faster-whisper). Only runs when "Run ASR" is enabled.',
+                getStatus: (v) => !v || !v.checked ? 'skip' : (v.expected ? (v.match ? 'pass' : 'fail') : 'info'),
+                getValue: (v) => !v || !v.checked ? (v?.reason || 'Not run') : `Detected: ${v.detected} (${(v.confidence*100).toFixed(0)}%)${v.expected ? ` · Expected: ${v.expected}` : ''}`
+            },
+            {
+                key: 'dme_check',
+                name: '🎭 DME Structural Check',
+                desc: 'Requires an M&E stem upload — heuristic dialogue-leakage detection, verify flagged files by ear',
+                getStatus: (v) => !v || !v.checked ? 'skip' : (v.clean ? 'pass' : 'warn'),
+                getValue: (v) => !v || !v.checked ? (v?.reason || 'No M&E stem provided') : (v.clean ? 'Clean' : `Possible leakage: ${v.dialogue_leakage_db}dB`)
+            },
+            {
+                key: 'profanity',
+                name: '🤐 Profanity / Censorship',
+                desc: 'Text-match against ASR transcript — misses bleeped/censored audio by design',
+                getStatus: (v) => !v || !v.scanned ? 'skip' : (v.flagged === 0 ? 'pass' : 'fail'),
+                getValue: (v) => !v || !v.scanned ? (v?.reason || 'Not run') : `${v.flagged} flagged`
+            },
+            {
+                key: 'audio_description',
+                name: '🔊 Audio Description (AD)',
+                desc: 'Detected via container tags/disposition — untagged AD tracks won\'t be found',
+                getStatus: (v) => !v ? 'skip' : (v.present ? 'pass' : 'info'),
+                getValue: (v) => v ? (v.present ? `Present (${v.streams.length} track${v.streams.length > 1 ? 's' : ''})` : 'No AD track detected') : 'Not measured'
+            },
+            {
+                key: 'mono_in_stereo',
+                name: '👥 Mono in Stereo Wrapper',
+                desc: 'Detects dual-mono (identical L/R) — sampled from first 5s',
+                getStatus: (v) => !v?.checked ? 'skip' : (v.is_dual_mono ? 'fail' : 'pass'),
+                getValue: (v) => v?.checked ? (v.is_dual_mono ? 'DUAL MONO ⚠' : 'True stereo') : 'Not measured'
+            }
+        ];
+
+        return checks.map(check => {
+            const value = qc[check.key];
+            const status = check.getStatus(value);
+            const valStr = check.getValue(value);
+            const icon = { pass: '✅', warn: '⚠️', fail: '❌', info: 'ℹ️', skip: '⏭️' }[status];
+
+            return `
+                <div class="qc-item ${status}">
+                    <div class="qc-icon">${icon}</div>
+                    <div class="qc-text">
+                        <div class="qc-name">${check.name}</div>
+                        <div class="qc-desc">${check.desc}</div>
+                        <div class="qc-value ${status === 'fail' ? 'al' : (status === 'warn' ? 'wn' : '')}">${x(valStr)}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
 
     function renderCard(r, i, container) {
@@ -384,6 +576,7 @@
         const df      = r.drift_frames  || {};
         const offCI   = r.offset_confidence || null;
         const dnaCI   = r.dna_confidence || null;
+        const qc      = r.qc_checks || null;
 
         const sfDelta = parseFloat(sf.delta) || 0;
         const sfClass = Math.abs(sfDelta) > 0.05 ? 'wn' : '';
@@ -403,153 +596,202 @@
                 <span class="badge ${r.status === 'PASS' ? 'bp' : (r.status === 'WARN' ? 'be' : 'bf')}">${r.status}</span>
             </div>
 
-            <!-- 6-METRIC GRID -->
-            <div class="sg">
-                <div class="sb ${offAl ? 'al' : ''}">
-                    <div class="sb-lbl">Start Offset</div>
-                    <div class="sb-val">${r.offset_ms}ms ${renderConfidence(offCI, 'ms')}</div>
-                    <div class="sb-sub">${offCI ? `CI: [${offCI[0]}, ${offCI[1]}]` : ''}</div>
-                </div>
-                <div class="sb ${driftAl ? 'al' : ''}">
-                    <div class="sb-lbl">Total Drift</div>
-                    <div class="sb-val">${r.total_drift_ms}ms</div>
-                </div>
-                <div class="sb ${dnaAl ? 'al' : ''}">
-                    <div class="sb-lbl">Onset DNA${r.vocal_filter ? ' <span style="color:var(--brand);font-size:8px">▲ HPSS</span>' : ''}</div>
-                    <div class="sb-val">${r.dna_match}% ${renderConfidence(dnaCI, '%')}</div>
-                    <div class="sb-sub">${dnaCI ? `CI: [${dnaCI[0]}, ${dnaCI[1]}]` : ''}</div>
-                </div>
-                <div class="sb ${chromaAl ? 'wn' : ''}">
-                    <div class="sb-lbl">Chroma DNA</div>
-                    <div class="sb-val">${r.chroma_dna ?? '—'}%</div>
-                    <div class="sb-sub">Spectral similarity</div>
-                </div>
-                <div class="sb">
-                    <div class="sb-lbl">Phase Health</div>
-                    <div class="sb-val" style="font-size:12px">${x(r.phase)}</div>
-                </div>
-                <div class="sb ${sfClass}">
-                    <div class="sb-lbl">Speed Factor</div>
-                    <div class="sb-val" style="font-size:13px">${x(sf.display || 'N/A')}</div>
-                </div>
+            <!-- TAB BAR -->
+            <div class="tab-bar">
+                <button class="tab-btn active" onclick="switchTab(${i}, 'sync')" id="tab-sync-${i}">🎯 Sync Analysis</button>
+                <button class="tab-btn" onclick="switchTab(${i}, 'qc')" id="tab-qc-${i}">🔍 Advanced QC</button>
+                <button class="tab-btn" onclick="switchTab(${i}, 'spectrum')" id="tab-spectrum-${i}">📊 Spectrum</button>
             </div>
 
-            <!-- DNA COMPARISON STRIP -->
-            <div class="dna-strip">
-                <div class="dna-card primary">
-                    <div class="dna-title">🎯 Onset DNA Match</div>
-                    <div class="dna-val">${r.dna_match}%</div>
-                    <div class="dna-desc">Temporal alignment via onset strength cross-correlation. Best for percussive/transient-rich content.</div>
-                </div>
-                <div class="dna-card secondary">
-                    <div class="dna-title">🎵 Chroma DNA Match</div>
-                    <div class="dna-val">${r.chroma_dna ?? 'N/A'}%</div>
-                    <div class="dna-desc">Spectral alignment via chromagram cross-correlation. Better for music/dialogue hybrid content.</div>
-                </div>
-            </div>
-
-            <!-- TIMING IN FRAMES -->
-            <div class="info-strip">
-                <div class="strip-title">⏱ Timing in Frames</div>
-                <table class="fr">
-                    <thead>
-                        <tr>
-                            <th>Metric</th>
-                            <th>23.976 fps<br><span class="unit">Film / Netflix</span></th>
-                            <th>25 fps<br><span class="unit">PAL / EBU</span></th>
-                            <th>29.97 fps<br><span class="unit">NTSC</span></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Start Offset<br><span class="unit">${r.offset_ms}ms</span></td>
-                            <td>${fv(of['23.976'], 2)} <span class="unit">fr</span></td>
-                            <td>${fv(of['25'],     2)} <span class="unit">fr</span></td>
-                            <td>${fv(of['29.97'],  2)} <span class="unit">fr</span></td>
-                        </tr>
-                        <tr>
-                            <td>Total Drift<br><span class="unit">${r.total_drift_ms}ms</span></td>
-                            <td>${fv(df['23.976'], 3)} <span class="unit">fr</span></td>
-                            <td>${fv(df['25'],     3)} <span class="unit">fr</span></td>
-                            <td>${fv(df['29.97'],  3)} <span class="unit">fr</span></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- SPEED FACTOR -->
-            <div class="info-strip">
-                <div class="strip-title">⚙ Clock Speed Analysis</div>
-                <div class="speed-row">
-                    <div class="speed-cell">
-                        <div class="slbl">Clock Ratio</div>
-                        <div class="sval">${x(sf.display || 'N/A')}</div>
+            <!-- SYNC TAB -->
+            <div class="tab-panel active" id="panel-sync-${i}">
+                <div class="sg">
+                    <div class="sb ${offAl ? 'al' : ''}">
+                        <div class="sb-lbl">Start Offset</div>
+                        <div class="sb-val">${r.offset_ms}ms ${renderConfidence(offCI, 'ms')}</div>
+                        <div class="sb-sub">${offCI ? `CI: [${offCI[0]}, ${offCI[1]}]` : ''}</div>
                     </div>
-                    <div class="speed-cell">
-                        <div class="slbl">Δ Speed</div>
-                        <div class="sval" style="color:${Math.abs(sfDelta)>0.05?'var(--warn)':'var(--text)'}">${x(sf.delta || 'N/A')}</div>
+                    <div class="sb ${driftAl ? 'al' : ''}">
+                        <div class="sb-lbl">Total Drift</div>
+                        <div class="sb-val">${r.total_drift_ms}ms</div>
                     </div>
-                    <div class="speed-action">${x(sf.action || '')}</div>
-                </div>
-            </div>
-
-            <!-- META TABLE -->
-            <div class="meta-wrap">
-                <table class="mt">
-                    <thead><tr><th>Property</th><th>Master Reference</th><th>Comparison Dub</th></tr></thead>
-                    <tbody>
-                        <tr><td>Sample Rate</td><td>${x(r.ref_meta?.sr)}</td><td>${x(r.comp_meta?.sr)}</td></tr>
-                        <tr><td>Duration</td><td>${x(r.ref_meta?.duration)}</td><td>${x(r.comp_meta?.duration)}</td></tr>
-                        <tr class="${r.chan_mismatch ? 'mm' : ''}">
-                            <td>Channels${r.chan_mismatch ? ' ⚠' : ''}</td>
-                            <td>${x(r.ref_meta?.channel_label)}</td>
-                            <td>${x(r.comp_meta?.channel_label)}</td>
-                        </tr>
-                        <tr><td>Bit Depth / Format</td><td>${x(r.ref_meta?.bit_depth)}</td><td>${x(r.comp_meta?.bit_depth)}</td></tr>
-                        <tr><td>Integrated Loudness</td><td>—</td><td>${x(lv.lufs)}</td></tr>
-                        <tr><td>Sample Peak</td><td>—</td><td>${x(lv.peak)}</td></tr>
-                        <tr>
-                            <td>True Peak (dBTP)
-                                <span style="font-size:9px;color:var(--muted);font-family:var(--mono);display:block">EBU R128 / ITU-R BS.1770</span>
-                            </td>
-                            <td>—</td>
-                            <td>${x(lv.true_peak)}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- WAVEFORM -->
-            <div class="wave-wrap">
-                <div class="wave-head">
-                    <div class="wave-title">
-                        <strong>Waveform Comparison</strong>
-                        &nbsp;·&nbsp; Mirrored dual-track · First 60s
-                        ${r.vocal_filter ? ' &nbsp;·&nbsp; HPSS filtered' : ''}
+                    <div class="sb ${dnaAl ? 'al' : ''}">
+                        <div class="sb-lbl">Onset DNA${r.vocal_filter ? ' <span style="color:var(--brand);font-size:8px">▲ HPSS</span>' : ''}</div>
+                        <div class="sb-val">${r.dna_match}% ${renderConfidence(dnaCI, '%')}</div>
+                        <div class="sb-sub">${dnaCI ? `CI: [${dnaCI[0]}, ${dnaCI[1]}]` : ''}</div>
                     </div>
-                    <div class="wave-tabs">
-                        <button class="wave-tab active" id="tab-rms-${i}" onclick="switchWave(${i},'rms')">RMS Envelope</button>
-                        <button class="wave-tab"        id="tab-raw-${i}" onclick="switchWave(${i},'raw')">Raw Waveform</button>
+                    <div class="sb ${chromaAl ? 'wn' : ''}">
+                        <div class="sb-lbl">Chroma DNA</div>
+                        <div class="sb-val">${r.chroma_dna ?? '—'}%</div>
+                        <div class="sb-sub">Spectral similarity</div>
+                    </div>
+                    <div class="sb">
+                        <div class="sb-lbl">Phase Health</div>
+                        <div class="sb-val" style="font-size:12px">${x(r.phase)}</div>
+                    </div>
+                    <div class="sb ${sfClass}">
+                        <div class="sb-lbl">Speed Factor</div>
+                        <div class="sb-val" style="font-size:13px">${x(sf.display || 'N/A')}</div>
                     </div>
                 </div>
-                <div class="wave-box" id="wv-${i}"></div>
-                <div class="wave-foot">
-                    <div class="wl"><div class="wd" style="background:#3b82f6"></div>Master (above axis)</div>
-                    <div class="wl"><div class="wd" style="background:#f59e0b"></div>Dub (below axis)</div>
-                    <div class="wave-desc" id="wv-desc-${i}">
-                        Smoothed energy envelope — comparable across languages, shows structural sync
+
+                <div class="dna-strip">
+                    <div class="dna-card primary">
+                        <div class="dna-title">🎯 Onset DNA Match</div>
+                        <div class="dna-val">${r.dna_match}%</div>
+                        <div class="dna-desc">Temporal alignment via onset strength cross-correlation. Best for percussive/transient-rich content.</div>
+                    </div>
+                    <div class="dna-card secondary">
+                        <div class="dna-title">🎵 Chroma DNA Match</div>
+                        <div class="dna-val">${r.chroma_dna ?? 'N/A'}%</div>
+                        <div class="dna-desc">Spectral alignment via chromagram cross-correlation. Better for music/dialogue hybrid content.</div>
+                    </div>
+                </div>
+
+                <div class="info-strip">
+                    <div class="strip-title">⏱ Timing in Frames</div>
+                    <table class="fr">
+                        <thead>
+                            <tr>
+                                <th>Metric</th>
+                                <th>23.976 fps<br><span class="unit">Film / Netflix</span></th>
+                                <th>25 fps<br><span class="unit">PAL / EBU</span></th>
+                                <th>29.97 fps<br><span class="unit">NTSC</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Start Offset<br><span class="unit">${r.offset_ms}ms</span></td>
+                                <td>${fv(of['23.976'], 2)} <span class="unit">fr</span></td>
+                                <td>${fv(of['25'],     2)} <span class="unit">fr</span></td>
+                                <td>${fv(of['29.97'],  2)} <span class="unit">fr</span></td>
+                            </tr>
+                            <tr>
+                                <td>Total Drift<br><span class="unit">${r.total_drift_ms}ms</span></td>
+                                <td>${fv(df['23.976'], 3)} <span class="unit">fr</span></td>
+                                <td>${fv(df['25'],     3)} <span class="unit">fr</span></td>
+                                <td>${fv(df['29.97'],  3)} <span class="unit">fr</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="info-strip">
+                    <div class="strip-title">⚙ Clock Speed Analysis</div>
+                    <div class="speed-row">
+                        <div class="speed-cell">
+                            <div class="slbl">Clock Ratio</div>
+                            <div class="sval">${x(sf.display || 'N/A')}</div>
+                        </div>
+                        <div class="speed-cell">
+                            <div class="slbl">Δ Speed</div>
+                            <div class="sval" style="color:${Math.abs(sfDelta)>0.05?'var(--warn)':'var(--text)'}">${x(sf.delta || 'N/A')}</div>
+                        </div>
+                        <div class="speed-action">${x(sf.action || '')}</div>
+                    </div>
+                </div>
+
+                <div class="meta-wrap">
+                    <table class="mt">
+                        <thead><tr><th>Property</th><th>Master Reference</th><th>Comparison Dub</th></tr></thead>
+                        <tbody>
+                            <tr><td>Sample Rate</td><td>${x(r.ref_meta?.sr)}</td><td>${x(r.comp_meta?.sr)}</td></tr>
+                            <tr><td>Duration</td><td>${x(r.ref_meta?.duration)}</td><td>${x(r.comp_meta?.duration)}</td></tr>
+                            <tr class="${r.chan_mismatch ? 'mm' : ''}">
+                                <td>Channels${r.chan_mismatch ? ' ⚠' : ''}</td>
+                                <td>${x(r.ref_meta?.channel_label)}</td>
+                                <td>${x(r.comp_meta?.channel_label)}</td>
+                            </tr>
+                            <tr><td>Bit Depth / Format</td><td>${x(r.ref_meta?.bit_depth)}</td><td>${x(r.comp_meta?.bit_depth)}</td></tr>
+                            <tr><td>Integrated Loudness</td><td>—</td><td>${x(lv.lufs)}</td></tr>
+                            <tr><td>Sample Peak</td><td>—</td><td>${x(lv.peak)}</td></tr>
+                            <tr>
+                                <td>True Peak (dBTP)
+                                    <span style="font-size:9px;color:var(--muted);font-family:var(--mono);display:block">EBU R128 / ITU-R BS.1770</span>
+                                </td>
+                                <td>—</td>
+                                <td>${x(lv.true_peak)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="wave-wrap">
+                    <div class="wave-head">
+                        <div class="wave-title">
+                            <strong>Waveform Comparison</strong>
+                            &nbsp;·&nbsp; Mirrored dual-track · First 60s
+                            ${r.vocal_filter ? ' &nbsp;·&nbsp; HPSS filtered' : ''}
+                        </div>
+                        <div class="wave-tabs">
+                            <button class="wave-tab active" id="tab-rms-${i}" onclick="switchWave(${i},'rms')">RMS Envelope</button>
+                            <button class="wave-tab"        id="tab-raw-${i}" onclick="switchWave(${i},'raw')">Raw Waveform</button>
+                        </div>
+                    </div>
+                    <div class="wave-box" id="wv-${i}"></div>
+                    <div class="wave-foot">
+                        <div class="wl"><div class="wd" style="background:#3b82f6"></div>Master (above axis)</div>
+                        <div class="wl"><div class="wd" style="background:#f59e0b"></div>Dub (below axis)</div>
+                        <div class="wave-desc" id="wv-desc-${i}">
+                            Smoothed energy envelope — comparable across languages, shows structural sync
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ADVANCED QC TAB -->
+            <div class="tab-panel" id="panel-qc-${i}">
+                <div class="info-strip">
+                    <div class="strip-title">🔍 Advanced Quality Control Checks</div>
+                    <div class="qc-list" id="qc-list-${i}">
+                        ${renderQCChecks(qc)}
+                    </div>
+                </div>
+            </div>
+
+            <!-- SPECTRUM TAB -->
+            <div class="tab-panel" id="panel-spectrum-${i}">
+                <div class="info-strip">
+                    <div class="strip-title">📊 Frequency Spectrum Analysis</div>
+                    <div class="spectrum-box" id="spectrum-${i}"></div>
+                    <div class="wave-foot" style="margin-top:8px;">
+                        <div class="wl"><div class="wd" style="background:#3b82f6"></div>Master spectrum</div>
+                        <div class="wl"><div class="wd" style="background:#f59e0b"></div>Dub spectrum</div>
+                        <div class="wave-desc">Log-frequency magnitude comparison — reveals EQ and spectral balance differences</div>
                     </div>
                 </div>
             </div>
         `;
 
         container.appendChild(div);
+
+        // Initialize waveform
         const wvEl = document.getElementById(`wv-${i}`);
         wvEl._data = {
             rms: { master: r.wave_rms_master, dub: r.wave_rms_dub },
             raw: { master: r.wave_raw_master, dub: r.wave_raw_dub }
         };
         renderWave(i, r.wave_rms_master, r.wave_rms_dub, 'rms');
+
+        // Initialize spectrum if data available
+        if (r.spectrum_master && r.spectrum_dub) {
+            renderSpectrum(i, r.spectrum_master, r.spectrum_dub);
+        }
+    }
+
+    function switchTab(cardIdx, tabName) {
+        ['sync', 'qc', 'spectrum'].forEach(t => {
+            const btn = document.getElementById(`tab-${t}-${cardIdx}`);
+            if (btn) btn.classList.toggle('active', t === tabName);
+        });
+        ['sync', 'qc', 'spectrum'].forEach(t => {
+            const panel = document.getElementById(`panel-${t}-${cardIdx}`);
+            if (panel) panel.classList.toggle('active', t === tabName);
+        });
+        if (tabName === 'spectrum') {
+            const chart = _spectrumCharts[cardIdx];
+            if (chart) setTimeout(() => chart.resize(), 50);
+        }
     }
 
     function switchWave(i, mode) {
@@ -684,8 +926,108 @@
         });
     }
 
+    function renderSpectrum(i, specM, specD) {
+        const el = document.getElementById(`spectrum-${i}`);
+        if (!el || !specM?.length || !specD?.length) return;
+
+        const chart = echarts.init(el, null, { renderer: 'canvas' });
+        _spectrumCharts[i] = chart;
+
+        const freqs = specM.map((_, idx) => {
+            const logFreq = 20 + (idx / specM.length) * (20000 - 20);
+            return Math.round(logFreq);
+        });
+
+        chart.setOption({
+            backgroundColor: '#f8fafc',
+            animation: false,
+            grid: { top: 14, bottom: 30, left: 50, right: 16 },
+            xAxis: {
+                type: 'category',
+                data: freqs,
+                axisLine: { lineStyle: { color: '#e2e8f0' } },
+                axisTick: { show: false },
+                axisLabel: {
+                    color: '#94a3b8', fontSize: 9, fontFamily: 'IBM Plex Mono',
+                    interval: Math.floor(freqs.length / 6),
+                    formatter: v => {
+                        if (v >= 1000) return (v/1000).toFixed(1) + 'k';
+                        return v;
+                    }
+                },
+                splitLine: { show: false }
+            },
+            yAxis: {
+                type: 'value',
+                min: -100, max: 0,
+                axisLine: { show: false },
+                axisTick: { show: false },
+                axisLabel: {
+                    color: '#94a3b8', fontSize: 9, fontFamily: 'IBM Plex Mono',
+                    formatter: v => v + 'dB'
+                },
+                splitLine: { show: true, lineStyle: { color: '#e8edf4', type: 'dashed', width: 1 } }
+            },
+            series: [
+                {
+                    name: 'Master', type: 'line', data: specM,
+                    symbol: 'none',
+                    lineStyle: { color: '#3b82f6', width: 1.5, opacity: 0.9 },
+                    areaStyle: {
+                        color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                            colorStops: [
+                                { offset: 0, color: 'rgba(59,130,246,0.25)' },
+                                { offset: 1, color: 'rgba(59,130,246,0.02)' }
+                            ]
+                        }
+                    },
+                    smooth: true
+                },
+                {
+                    name: 'Dub', type: 'line', data: specD,
+                    symbol: 'none',
+                    lineStyle: { color: '#f59e0b', width: 1.5, opacity: 0.9 },
+                    areaStyle: {
+                        color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                            colorStops: [
+                                { offset: 0, color: 'rgba(245,158,11,0.25)' },
+                                { offset: 1, color: 'rgba(245,158,11,0.02)' }
+                            ]
+                        }
+                    },
+                    smooth: true
+                }
+            ],
+            legend: { show: false },
+            tooltip: {
+                trigger: 'axis',
+                backgroundColor: '#1e293b',
+                borderColor: '#334155',
+                padding: [8, 12],
+                textStyle: { color: '#cbd5e1', fontSize: 11, fontFamily: 'IBM Plex Mono' },
+                formatter: params => {
+                    const mS = params.find(p => p.seriesName === 'Master');
+                    const dS = params.find(p => p.seriesName === 'Dub');
+                    const freq = mS?.axisValue || '';
+                    return `
+                        <div style="font-weight:600;color:#fff;margin-bottom:4px;">${freq}Hz</div>
+                        <div style="display:flex;justify-content:space-between;gap:16px;">
+                            <span><span style="color:#3b82f6">●</span> Master:</span>
+                            <span style="font-weight:600">${mS?.value?.toFixed(1)}dB</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;gap:16px;margin-top:2px;">
+                            <span><span style="color:#f59e0b">●</span> Dub:</span>
+                            <span style="font-weight:600">${dS?.value?.toFixed(1)}dB</span>
+                        </div>
+                    `;
+                }
+            }
+        });
+    }
+
     window.addEventListener('resize', () => {
         Object.values(_charts).forEach(chart => { if (chart) chart.resize(); });
+        Object.values(_spectrumCharts).forEach(chart => { if (chart) chart.resize(); });
     });
 </script>
 </body>
