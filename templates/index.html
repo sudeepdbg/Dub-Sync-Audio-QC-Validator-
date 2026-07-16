@@ -45,6 +45,13 @@
         .tagline { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: var(--mono); }
         .top-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
+        /* ── MODE SWITCHER ── */
+        .mode-bar { display: flex; gap: 0; margin-bottom: 20px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .mode-btn { flex: 1; padding: 10px 16px; border: none; background: transparent; border-radius: 8px; font-family: var(--sans); font-weight: 600; font-size: 13px; cursor: pointer; color: var(--muted); transition: all .15s; text-align: center; }
+        .mode-btn:hover { color: var(--brand); background: var(--brand-dim); }
+        .mode-btn.active { background: var(--brand); color: #fff; }
+        .mode-btn .mode-desc { display: block; font-size: 10px; font-weight: 400; color: inherit; opacity: 0.7; margin-top: 2px; font-family: var(--mono); }
+
         /* ── PANEL ── */
         .panel {
             background: var(--card); border: 1px solid var(--border); border-radius: 14px;
@@ -220,6 +227,9 @@
         /* ── SPECTRUM VISUALIZER ── */
         .spectrum-box { width: 100%; height: 160px; background: #f8fafc; border-radius: 8px; }
 
+        /* ── SINGLE-FILE QC BADGE ── */
+        .qc-mode-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; font-family: var(--mono); background: var(--info-bg); color: var(--info); border: 1px solid var(--info-bd); margin-left: 8px; vertical-align: middle; }
+
         @media (max-width: 900px) {
             .sg { grid-template-columns: repeat(3, 1fr); }
             .dna-strip { grid-template-columns: 1fr; }
@@ -229,8 +239,10 @@
             .panel, .panel-2 { flex-direction: column; align-items: stretch; }
             .sg { grid-template-columns: repeat(2, 1fr); }
             .tab-bar { overflow-x: auto; }
+            .mode-bar { flex-direction: column; }
         }
     </style>
+<base target="_blank">
 <base target="_blank">
 </head>
 <body>
@@ -238,43 +250,55 @@
 
     <div class="topbar">
         <div>
-            <div class="logo">🎧 Sync Engine <span class="accent">Pro</span> <span class="ver">v9</span></div>
-            <div class="tagline">Temporal offset · Drift · Speed factor · Onset DNA · Chroma DNA · True Peak · Phase · Advanced QC</div>
+            <div class="logo">🎧 Sync Engine <span class="accent">Pro</span> <span class="ver">v10</span></div>
+            <div class="tagline">Temporal offset · Drift · Speed factor · Onset DNA · Chroma DNA · True Peak · Phase · Advanced QC · Single-File QC</div>
         </div>
         <div class="top-actions">
-            <button class="btn-download" id="topDlBtn" onclick="downloadReport()">📊 Download JSON Report</button>
-            <button class="btn-ghost" onclick="wipeCache()">Clear Cache</button>
+            <button class="btn-download" id="topDlBtn">📊 Download JSON Report</button>
+            <button class="btn-ghost" id="wipeBtn">Clear Cache</button>
         </div>
     </div>
 
-    <div class="panel">
-        <div class="field">
+    <!-- Mode Switcher -->
+    <div class="mode-bar" id="modeBar">
+        <button class="mode-btn active" data-mode="alignment" id="modeAlignment">
+            🎯 Alignment Mode
+            <span class="mode-desc">Reference + Dub comparison</span>
+        </button>
+        <button class="mode-btn" data-mode="single_qc" id="modeSingleQC">
+            🔍 Single-File QC
+            <span class="mode-desc">Standalone quality analysis</span>
+        </button>
+    </div>
+
+    <div class="panel" id="mainPanel">
+        <div class="field" id="refField">
             <span class="field-lbl">Master Reference</span>
             <div class="drop">
                 <div class="fname ph" id="refName">Choose master file…</div>
-                <input type="file" id="refFile" accept="audio/*" onchange="onPick('refFile','refName',false)">
+                <input type="file" id="refFile" accept="audio/*">
             </div>
         </div>
         <div class="field">
-            <span class="field-lbl">Dub Files</span>
+            <span class="field-lbl" id="compLabel">Dub Files</span>
             <div class="drop">
                 <div class="fname ph" id="compName">Choose dub files…</div>
-                <input type="file" id="compFiles" multiple accept="audio/*" onchange="onPick('compFiles','compName',true)">
+                <input type="file" id="compFiles" multiple accept="audio/*">
             </div>
         </div>
-        <div class="tog">
+        <div class="tog" id="vocalToggle">
             <input type="checkbox" id="vocalDna" checked>
             <label for="vocalDna" title="HPSS percussive separation + 300–3400Hz bandpass. Isolates speech transients for more accurate onset DNA scoring.">Vocal DNA Filter</label>
         </div>
-        <button class="btn-primary" id="runBtn" onclick="runQC()">Run QC Engine</button>
+        <button class="btn-primary" id="runBtn">Run QC Engine</button>
     </div>
 
-    <div class="panel-2">
-        <div class="field">
+    <div class="panel-2" id="optionsPanel">
+        <div class="field" id="meField">
             <span class="field-lbl">M&amp;E Stem (optional)</span>
             <div class="drop">
                 <div class="fname ph" id="meName">For DME check…</div>
-                <input type="file" id="meFile" accept="audio/*" onchange="onPick('meFile','meName',false)">
+                <input type="file" id="meFile" accept="audio/*">
             </div>
         </div>
         <div class="field grow">
@@ -300,7 +324,7 @@
     <div id="loader">
         <div class="spin"></div>
         <div class="lm" id="loadMsg">Running QC Engine…</div>
-        <div class="ls">Analyzing onset DNA, chroma DNA, drift &amp; levels. Large files may take a moment.</div>
+        <div class="ls" id="loadSub">Analyzing onset DNA, chroma DNA, drift &amp; levels. Large files may take a moment.</div>
     </div>
 
     <div class="err" id="errBanner">
@@ -313,6 +337,7 @@
 
 <script>
     let currentRawData = null;
+    let currentMode = 'alignment';
     const _charts = {};
     const _spectrumCharts = {};
 
@@ -326,28 +351,94 @@
             .replace(/'/g, '&#39;');
     }
 
-    function onPick(iId, lId, multi) {
-        const f = document.getElementById(iId).files;
-        const el = document.getElementById(lId);
-        if (!f.length) { el.textContent = 'Choose file…'; el.classList.add('ph'); return; }
-        el.classList.remove('ph');
-        el.textContent = (multi && f.length > 1) ? `${f.length} files selected` : f[0].name;
+    // ── MODE SWITCHING ──
+    function setMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.mode === mode);
+        });
+
+        const refField = document.getElementById('refField');
+        const vocalToggle = document.getElementById('vocalToggle');
+        const compLabel = document.getElementById('compLabel');
+        const meField = document.getElementById('meField');
+
+        if (mode === 'single_qc') {
+            refField.style.display = 'none';
+            vocalToggle.style.display = 'none';
+            compLabel.textContent = 'Audio Files';
+            if (meField) meField.style.display = 'none';
+            document.getElementById('loadSub').textContent = 'Running standalone QC analysis — levels, spectrum, and advanced checks.';
+        } else {
+            refField.style.display = '';
+            vocalToggle.style.display = '';
+            compLabel.textContent = 'Dub Files';
+            if (meField) meField.style.display = '';
+            document.getElementById('loadSub').textContent = 'Analyzing onset DNA, chroma DNA, drift & levels. Large files may take a moment.';
+        }
+
+        // Clear previous results
+        document.getElementById('results').innerHTML = '';
+        document.getElementById('sumBar').classList.remove('on');
+        document.getElementById('topDlBtn').classList.remove('on');
+        currentRawData = null;
     }
 
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => setMode(btn.dataset.mode));
+    });
+
+    // ── FILE PICKERS ──
+    function onPick(inputId, labelId, multi) {
+        const input = document.getElementById(inputId);
+        const label = document.getElementById(labelId);
+        const files = input.files;
+        if (!files.length) { label.textContent = 'Choose file…'; label.classList.add('ph'); return; }
+        label.classList.remove('ph');
+        label.textContent = (multi && files.length > 1) ? `${files.length} files selected` : files[0].name;
+    }
+
+    document.getElementById('refFile').addEventListener('change', () => onPick('refFile', 'refName', false));
+    document.getElementById('compFiles').addEventListener('change', () => onPick('compFiles', 'compName', true));
+    document.getElementById('meFile').addEventListener('change', () => onPick('meFile', 'meName', false));
+
+    // ── WIPE CACHE ──
     async function wipeCache() {
-        if (!confirm('Clear all session data from the server?')) return;
+        if (!confirm('Clear all session data from the server? This requires a token.\n\nNote: In production, set WIPE_SECRET env var. Default token is auto-generated.')) return;
+        const token = prompt('Enter wipe token (check server logs or WIPE_SECRET env var):');
+        if (!token) return;
         try {
-            const res = await fetch('/wipe', { method: 'POST' });
-            if (!res.ok) throw new Error(`Server returned ${res.status}`);
+            const res = await fetch('/wipe', {
+                method: 'POST',
+                headers: { 'X-Wipe-Token': token }
+            });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || `Server returned ${res.status}`);
+            }
             location.reload();
         } catch (e) {
             alert(`Failed to clear cache: ${e.message}`);
         }
     }
+    document.getElementById('wipeBtn').addEventListener('click', wipeCache);
 
-    function setLoading(on, msg = 'Running QC Engine…') {
+    // ── DOWNLOAD REPORT ──
+    function downloadReport() {
+        if (!currentRawData) return;
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentRawData, null, 2));
+        const dlAnchor = document.createElement('a');
+        dlAnchor.setAttribute("href", dataStr);
+        dlAnchor.setAttribute("download", `sync_qc_report_${Date.now()}.json`);
+        document.body.appendChild(dlAnchor);
+        dlAnchor.click();
+        dlAnchor.remove();
+    }
+    document.getElementById('topDlBtn').addEventListener('click', downloadReport);
+
+    function setLoading(on, msg) {
         document.getElementById('loader').classList.toggle('on', on);
-        document.getElementById('loadMsg').textContent = msg;
+        if (msg) document.getElementById('loadMsg').textContent = msg;
         document.getElementById('runBtn').disabled = on;
         document.getElementById('errBanner').classList.remove('on');
         if (on) document.getElementById('topDlBtn').classList.remove('on');
@@ -360,26 +451,32 @@
     }
 
     async function runQC() {
-        const ref   = document.getElementById('refFile').files[0];
+        const ref = document.getElementById('refFile').files[0];
         const comps = document.getElementById('compFiles').files;
         const meFile = document.getElementById('meFile').files[0];
         const runAsr = document.getElementById('runAsr').checked;
         const expectedLang = document.getElementById('expectedLang').value.trim();
 
-        if (!ref)          { alert('Please select a master reference file.'); return; }
-        if (!comps.length) { alert('Please select at least one dub file.'); return; }
+        if (currentMode === 'alignment') {
+            if (!ref) { alert('Please select a master reference file.'); return; }
+        }
+        if (!comps.length) { alert('Please select at least one audio file.'); return; }
 
         document.getElementById('results').innerHTML = '';
         document.getElementById('sumBar').classList.remove('on');
+
+        const fileCount = comps.length;
+        const modeLabel = currentMode === 'single_qc' ? 'Single-File QC' : 'Alignment';
         setLoading(true, runAsr
-            ? `Analyzing ${comps.length} file${comps.length > 1 ? 's' : ''} (ASR enabled — this takes longer)…`
-            : `Analyzing ${comps.length} file${comps.length > 1 ? 's' : ''}…`);
+            ? `${modeLabel}: Analyzing ${fileCount} file${fileCount > 1 ? 's' : ''} (ASR enabled — this takes longer)…`
+            : `${modeLabel}: Analyzing ${fileCount} file${fileCount > 1 ? 's' : ''}…`);
 
         const fd = new FormData();
-        fd.append('reference', ref);
+        fd.append('mode', currentMode);
+        if (currentMode === 'alignment' && ref) fd.append('reference', ref);
         for (const f of comps) fd.append('comparison[]', f);
         fd.append('vocal_logic', document.getElementById('vocalDna').checked);
-        if (meFile) fd.append('me_stem', meFile);
+        if (meFile && currentMode === 'alignment') fd.append('me_stem', meFile);
         fd.append('run_asr', runAsr);
         if (expectedLang) fd.append('expected_language', expectedLang);
 
@@ -392,17 +489,7 @@
         setLoading(false);
         renderAll(currentRawData);
     }
-
-    function downloadReport() {
-        if (!currentRawData) return;
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentRawData, null, 2));
-        const dlAnchor = document.createElement('a');
-        dlAnchor.setAttribute("href", dataStr);
-        dlAnchor.setAttribute("download", `sync_qc_report_${Date.now()}.json`);
-        document.body.appendChild(dlAnchor);
-        dlAnchor.click();
-        dlAnchor.remove();
-    }
+    document.getElementById('runBtn').addEventListener('click', runQC);
 
     function renderAll(data) {
         const results = data.results || [];
@@ -437,9 +524,6 @@
     }
 
     // ── QC CHECK RENDERER ──
-    // Every check explicitly distinguishes "not run / not applicable" (skip)
-    // from an actual measured pass/warn/fail. A missing value NEVER renders
-    // as a red failure badge.
     function renderQCChecks(qc) {
         if (!qc) return '<div style="color:var(--muted);font-size:12px;padding:20px;text-align:center;">Advanced QC checks not available for this file format.</div>';
 
@@ -469,9 +553,9 @@
             {
                 key: 'digital_clicks',
                 name: '💥 Level Spike Detection',
-                desc: 'Statistical outliers in peak level — coarse indicator, not sample-accurate click detection',
+                desc: 'High-frequency transient detection (15kHz high-pass) — detects clicks and digital artifacts',
                 getStatus: (v) => !v ? 'skip' : (v.count === 0 ? 'pass' : (v.count < 5 ? 'warn' : 'fail')),
-                getValue: (v) => v ? `${v.count} spikes flagged` : 'Not measured'
+                getValue: (v) => v ? `${v.count} spikes flagged${v.method ? ` (${v.method})` : ''}` : 'Not measured'
             },
             {
                 key: 'dropouts',
@@ -518,7 +602,7 @@
             {
                 key: 'audio_description',
                 name: '🔊 Audio Description (AD)',
-                desc: 'Detected via container tags/disposition — untagged AD tracks won\'t be found',
+                desc: 'Detected via container tags/disposition — untagged AD tracks won't be found',
                 getStatus: (v) => !v ? 'skip' : (v.present ? 'pass' : 'info'),
                 getValue: (v) => v ? (v.present ? `Present (${v.streams.length} track${v.streams.length > 1 ? 's' : ''})` : 'No AD track detected') : 'Not measured'
             },
@@ -549,486 +633,3 @@
             `;
         }).join('');
     }
-
-    function renderCard(r, i, container) {
-        const div = document.createElement('div');
-
-        if (r.error) {
-            div.className = 'rc ec';
-            div.innerHTML = `
-                <div class="rc-head">
-                    <div><h3>${x(r.filename)}</h3><div class="rsub" style="color:var(--danger)">Processing failed</div></div>
-                    <span class="badge be">ERROR</span>
-                </div>
-                <pre style="font-size:12px;color:#7f1d1d;white-space:pre-wrap;font-family:var(--mono)">${x(r.reason)}</pre>`;
-            container.appendChild(div);
-            return;
-        }
-
-        const isPass  = r.status === 'PASS';
-        const offAl   = Math.abs(r.offset_ms)      > 80;
-        const driftAl = Math.abs(r.total_drift_ms) > 150;
-        const dnaAl   = r.dna_match < 80;
-        const chromaAl = (r.chroma_dna || 0) < 80;
-        const sf      = r.speed_factor  || {};
-        const lv      = r.levels        || {};
-        const of      = r.offset_frames || {};
-        const df      = r.drift_frames  || {};
-        const offCI   = r.offset_confidence || null;
-        const dnaCI   = r.dna_confidence || null;
-        const qc      = r.qc_checks || null;
-
-        const sfDelta = parseFloat(sf.delta) || 0;
-        const sfClass = Math.abs(sfDelta) > 0.05 ? 'wn' : '';
-
-        const fv = (val, threshold) => {
-            const n = Math.abs(parseFloat(val) || 0);
-            return `<span class="${n > threshold ? 'al' : ''}">${val ?? '—'}</span>`;
-        };
-
-        div.className = 'rc';
-        div.innerHTML = `
-            <div class="rc-head">
-                <div>
-                    <h3>${x(r.filename)}</h3>
-                    <div class="rsub">${x(r.reason)}</div>
-                </div>
-                <span class="badge ${r.status === 'PASS' ? 'bp' : (r.status === 'WARN' ? 'be' : 'bf')}">${r.status}</span>
-            </div>
-
-            <!-- TAB BAR -->
-            <div class="tab-bar">
-                <button class="tab-btn active" onclick="switchTab(${i}, 'sync')" id="tab-sync-${i}">🎯 Sync Analysis</button>
-                <button class="tab-btn" onclick="switchTab(${i}, 'qc')" id="tab-qc-${i}">🔍 Advanced QC</button>
-                <button class="tab-btn" onclick="switchTab(${i}, 'spectrum')" id="tab-spectrum-${i}">📊 Spectrum</button>
-            </div>
-
-            <!-- SYNC TAB -->
-            <div class="tab-panel active" id="panel-sync-${i}">
-                <div class="sg">
-                    <div class="sb ${offAl ? 'al' : ''}">
-                        <div class="sb-lbl">Start Offset</div>
-                        <div class="sb-val">${r.offset_ms}ms ${renderConfidence(offCI, 'ms')}</div>
-                        <div class="sb-sub">${offCI ? `CI: [${offCI[0]}, ${offCI[1]}]` : ''}</div>
-                    </div>
-                    <div class="sb ${driftAl ? 'al' : ''}">
-                        <div class="sb-lbl">Total Drift</div>
-                        <div class="sb-val">${r.total_drift_ms}ms</div>
-                    </div>
-                    <div class="sb ${dnaAl ? 'al' : ''}">
-                        <div class="sb-lbl">Onset DNA${r.vocal_filter ? ' <span style="color:var(--brand);font-size:8px">▲ HPSS</span>' : ''}</div>
-                        <div class="sb-val">${r.dna_match}% ${renderConfidence(dnaCI, '%')}</div>
-                        <div class="sb-sub">${dnaCI ? `CI: [${dnaCI[0]}, ${dnaCI[1]}]` : ''}</div>
-                    </div>
-                    <div class="sb ${chromaAl ? 'wn' : ''}">
-                        <div class="sb-lbl">Chroma DNA</div>
-                        <div class="sb-val">${r.chroma_dna ?? '—'}%</div>
-                        <div class="sb-sub">Spectral similarity</div>
-                    </div>
-                    <div class="sb">
-                        <div class="sb-lbl">Phase Health</div>
-                        <div class="sb-val" style="font-size:12px">${x(r.phase)}</div>
-                    </div>
-                    <div class="sb ${sfClass}">
-                        <div class="sb-lbl">Speed Factor</div>
-                        <div class="sb-val" style="font-size:13px">${x(sf.display || 'N/A')}</div>
-                    </div>
-                </div>
-
-                <div class="dna-strip">
-                    <div class="dna-card primary">
-                        <div class="dna-title">🎯 Onset DNA Match</div>
-                        <div class="dna-val">${r.dna_match}%</div>
-                        <div class="dna-desc">Temporal alignment via onset strength cross-correlation. Best for percussive/transient-rich content.</div>
-                    </div>
-                    <div class="dna-card secondary">
-                        <div class="dna-title">🎵 Chroma DNA Match</div>
-                        <div class="dna-val">${r.chroma_dna ?? 'N/A'}%</div>
-                        <div class="dna-desc">Spectral alignment via chromagram cross-correlation. Better for music/dialogue hybrid content.</div>
-                    </div>
-                </div>
-
-                <div class="info-strip">
-                    <div class="strip-title">⏱ Timing in Frames</div>
-                    <table class="fr">
-                        <thead>
-                            <tr>
-                                <th>Metric</th>
-                                <th>23.976 fps<br><span class="unit">Film / Netflix</span></th>
-                                <th>25 fps<br><span class="unit">PAL / EBU</span></th>
-                                <th>29.97 fps<br><span class="unit">NTSC</span></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Start Offset<br><span class="unit">${r.offset_ms}ms</span></td>
-                                <td>${fv(of['23.976'], 2)} <span class="unit">fr</span></td>
-                                <td>${fv(of['25'],     2)} <span class="unit">fr</span></td>
-                                <td>${fv(of['29.97'],  2)} <span class="unit">fr</span></td>
-                            </tr>
-                            <tr>
-                                <td>Total Drift<br><span class="unit">${r.total_drift_ms}ms</span></td>
-                                <td>${fv(df['23.976'], 3)} <span class="unit">fr</span></td>
-                                <td>${fv(df['25'],     3)} <span class="unit">fr</span></td>
-                                <td>${fv(df['29.97'],  3)} <span class="unit">fr</span></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="info-strip">
-                    <div class="strip-title">⚙ Clock Speed Analysis</div>
-                    <div class="speed-row">
-                        <div class="speed-cell">
-                            <div class="slbl">Clock Ratio</div>
-                            <div class="sval">${x(sf.display || 'N/A')}</div>
-                        </div>
-                        <div class="speed-cell">
-                            <div class="slbl">Δ Speed</div>
-                            <div class="sval" style="color:${Math.abs(sfDelta)>0.05?'var(--warn)':'var(--text)'}">${x(sf.delta || 'N/A')}</div>
-                        </div>
-                        <div class="speed-action">${x(sf.action || '')}</div>
-                    </div>
-                </div>
-
-                <div class="meta-wrap">
-                    <table class="mt">
-                        <thead><tr><th>Property</th><th>Master Reference</th><th>Comparison Dub</th></tr></thead>
-                        <tbody>
-                            <tr><td>Sample Rate</td><td>${x(r.ref_meta?.sr)}</td><td>${x(r.comp_meta?.sr)}</td></tr>
-                            <tr><td>Duration</td><td>${x(r.ref_meta?.duration)}</td><td>${x(r.comp_meta?.duration)}</td></tr>
-                            <tr class="${r.chan_mismatch ? 'mm' : ''}">
-                                <td>Channels${r.chan_mismatch ? ' ⚠' : ''}</td>
-                                <td>${x(r.ref_meta?.channel_label)}</td>
-                                <td>${x(r.comp_meta?.channel_label)}</td>
-                            </tr>
-                            <tr><td>Bit Depth / Format</td><td>${x(r.ref_meta?.bit_depth)}</td><td>${x(r.comp_meta?.bit_depth)}</td></tr>
-                            <tr><td>Integrated Loudness</td><td>—</td><td>${x(lv.lufs)}</td></tr>
-                            <tr><td>Sample Peak</td><td>—</td><td>${x(lv.peak)}</td></tr>
-                            <tr>
-                                <td>True Peak (dBTP)
-                                    <span style="font-size:9px;color:var(--muted);font-family:var(--mono);display:block">EBU R128 / ITU-R BS.1770</span>
-                                </td>
-                                <td>—</td>
-                                <td>${x(lv.true_peak)}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="wave-wrap">
-                    <div class="wave-head">
-                        <div class="wave-title">
-                            <strong>Waveform Comparison</strong>
-                            &nbsp;·&nbsp; Mirrored dual-track · First 60s
-                            ${r.vocal_filter ? ' &nbsp;·&nbsp; HPSS filtered' : ''}
-                        </div>
-                        <div class="wave-tabs">
-                            <button class="wave-tab active" id="tab-rms-${i}" onclick="switchWave(${i},'rms')">RMS Envelope</button>
-                            <button class="wave-tab"        id="tab-raw-${i}" onclick="switchWave(${i},'raw')">Raw Waveform</button>
-                        </div>
-                    </div>
-                    <div class="wave-box" id="wv-${i}"></div>
-                    <div class="wave-foot">
-                        <div class="wl"><div class="wd" style="background:#3b82f6"></div>Master (above axis)</div>
-                        <div class="wl"><div class="wd" style="background:#f59e0b"></div>Dub (below axis)</div>
-                        <div class="wave-desc" id="wv-desc-${i}">
-                            Smoothed energy envelope — comparable across languages, shows structural sync
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ADVANCED QC TAB -->
-            <div class="tab-panel" id="panel-qc-${i}">
-                <div class="info-strip">
-                    <div class="strip-title">🔍 Advanced Quality Control Checks</div>
-                    <div class="qc-list" id="qc-list-${i}">
-                        ${renderQCChecks(qc)}
-                    </div>
-                </div>
-            </div>
-
-            <!-- SPECTRUM TAB -->
-            <div class="tab-panel" id="panel-spectrum-${i}">
-                <div class="info-strip">
-                    <div class="strip-title">📊 Frequency Spectrum Analysis</div>
-                    <div class="spectrum-box" id="spectrum-${i}"></div>
-                    <div class="wave-foot" style="margin-top:8px;">
-                        <div class="wl"><div class="wd" style="background:#3b82f6"></div>Master spectrum</div>
-                        <div class="wl"><div class="wd" style="background:#f59e0b"></div>Dub spectrum</div>
-                        <div class="wave-desc">Log-frequency magnitude comparison — reveals EQ and spectral balance differences</div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        container.appendChild(div);
-
-        // Initialize waveform
-        const wvEl = document.getElementById(`wv-${i}`);
-        wvEl._data = {
-            rms: { master: r.wave_rms_master, dub: r.wave_rms_dub },
-            raw: { master: r.wave_raw_master, dub: r.wave_raw_dub }
-        };
-        renderWave(i, r.wave_rms_master, r.wave_rms_dub, 'rms');
-
-        // Initialize spectrum if data available
-        if (r.spectrum_master && r.spectrum_dub) {
-            renderSpectrum(i, r.spectrum_master, r.spectrum_dub);
-        }
-    }
-
-    function switchTab(cardIdx, tabName) {
-        ['sync', 'qc', 'spectrum'].forEach(t => {
-            const btn = document.getElementById(`tab-${t}-${cardIdx}`);
-            if (btn) btn.classList.toggle('active', t === tabName);
-        });
-        ['sync', 'qc', 'spectrum'].forEach(t => {
-            const panel = document.getElementById(`panel-${t}-${cardIdx}`);
-            if (panel) panel.classList.toggle('active', t === tabName);
-        });
-        if (tabName === 'spectrum') {
-            const chart = _spectrumCharts[cardIdx];
-            if (chart) setTimeout(() => chart.resize(), 50);
-        }
-    }
-
-    function switchWave(i, mode) {
-        const el   = document.getElementById(`wv-${i}`);
-        const desc = document.getElementById(`wv-desc-${i}`);
-        if (!el?._data) return;
-
-        document.getElementById(`tab-rms-${i}`).classList.toggle('active', mode === 'rms');
-        document.getElementById(`tab-raw-${i}`).classList.toggle('active', mode === 'raw');
-
-        const d = el._data[mode];
-        if (desc) {
-            desc.textContent = mode === 'rms'
-                ? 'Smoothed energy envelope — comparable across languages, shows structural sync'
-                : 'Raw audio samples (abs-normalised) — acoustic detail, compare transient shapes';
-        }
-
-        const label = mode === 'rms' ? 'RMS energy' : 'Raw amplitude';
-        const chart = _charts[i];
-        if (!chart) { renderWave(i, d.master, d.dub, mode); return; }
-
-        chart.setOption({
-            series: [
-                { name: '_zero', data: new Array(Math.min(d.master.length, d.dub.length)).fill(0) },
-                { name: 'Master', data: d.master },
-                { name: 'Dub',    data: d.dub }
-            ]
-        });
-        chart._waveMode = label;
-    }
-
-    function renderWave(i, waveM, waveD, mode) {
-        const el = document.getElementById(`wv-${i}`);
-        if (!el || !waveM?.length || !waveD?.length) return;
-
-        const chart = echarts.init(el, null, { renderer: 'canvas' });
-        _charts[i]  = chart;
-        chart._waveMode = mode === 'rms' ? 'RMS energy' : 'Raw amplitude';
-
-        chart.setOption({
-            backgroundColor: '#f8fafc',
-            animation: false,
-            grid: { top: 14, bottom: 14, left: 46, right: 16 },
-            xAxis: {
-                type: 'category',
-                boundaryGap: false,
-                axisLine: { lineStyle: { color: '#e2e8f0' } },
-                axisTick: { show: false },
-                axisLabel: { show: false },
-                splitLine: { show: false }
-            },
-            yAxis: {
-                type: 'value',
-                min: -1.1, max: 1.1, interval: 0.5,
-                axisLine: { show: false },
-                axisTick: { show: false },
-                axisLabel: {
-                    color: '#94a3b8', fontSize: 9, fontFamily: 'IBM Plex Mono',
-                    formatter: v => v === 0 ? '0' : v.toFixed(1)
-                },
-                splitLine: { show: true, lineStyle: { color: '#e8edf4', type: 'dashed', width: 1 } }
-            },
-            series: [
-                {
-                    name: '_zero', type: 'line',
-                    data: new Array(Math.min(waveM.length, waveD.length)).fill(0),
-                    symbol: 'none',
-                    lineStyle: { color: '#cbd5e1', width: 1.5, type: 'solid' },
-                    z: 1, silent: true, legendHoverLink: false
-                },
-                {
-                    name: 'Master', type: 'line', data: waveM,
-                    symbol: 'none',
-                    lineStyle: { color: '#3b82f6', width: 1.2, opacity: 0.95 },
-                    areaStyle: {
-                        origin: 0,
-                        color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                            colorStops: [
-                                { offset: 0, color: 'rgba(59,130,246,0.35)' },
-                                { offset: 1, color: 'rgba(59,130,246,0.03)' }
-                            ]
-                        }
-                    },
-                    large: true, largeThreshold: 500, z: 2
-                },
-                {
-                    name: 'Dub', type: 'line', data: waveD,
-                    symbol: 'none',
-                    lineStyle: { color: '#f59e0b', width: 1.2, opacity: 0.95 },
-                    areaStyle: {
-                        origin: 0,
-                        color: { type: 'linear', x: 0, y: 1, x2: 0, y2: 0,
-                            colorStops: [
-                                { offset: 0, color: 'rgba(245,158,11,0.35)' },
-                                { offset: 1, color: 'rgba(245,158,11,0.03)' }
-                            ]
-                        }
-                    },
-                    large: true, largeThreshold: 500, z: 2
-                }
-            ],
-            legend: { show: false },
-            tooltip: {
-                trigger: 'axis',
-                backgroundColor: '#1e293b',
-                borderColor: '#334155',
-                padding: [8, 12],
-                textStyle: { color: '#cbd5e1', fontSize: 11, fontFamily: 'IBM Plex Mono' },
-                axisPointer: { lineStyle: { color: '#475569', width: 1 } },
-                formatter: params => {
-                    const mS = params.find(p => p.seriesName === 'Master');
-                    const dS = params.find(p => p.seriesName === 'Dub');
-                    const m  = mS?.value ?? 0;
-                    const d  = dS?.value ? Math.abs(dS.value) : 0;
-                    const lbl = chart._waveMode || 'Value';
-                    return `
-                        <div style="font-weight:600;color:#fff;margin-bottom:4px;">Sample Index: ${mS?.dataIndex ?? ''}</div>
-                        <div style="display:flex;justify-content:space-between;gap:16px;">
-                            <span><span style="color:#3b82f6">●</span> Master ${lbl}:</span>
-                            <span style="font-weight:600;margin-left:auto">${m.toFixed(3)}</span>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;gap:16px;margin-top:2px;">
-                            <span><span style="color:#f59e0b">●</span> Dub ${lbl}:</span>
-                            <span style="font-weight:600;margin-left:auto">${d.toFixed(3)}</span>
-                        </div>
-                        <div style="border-top:1px solid #334155;margin-top:6px;padding-top:4px;font-size:10px;color:#94a3b8">
-                            Δ Variance: ${Math.abs(m - d).toFixed(3)}
-                        </div>
-                    `;
-                }
-            }
-        });
-    }
-
-    function renderSpectrum(i, specM, specD) {
-        const el = document.getElementById(`spectrum-${i}`);
-        if (!el || !specM?.length || !specD?.length) return;
-
-        const chart = echarts.init(el, null, { renderer: 'canvas' });
-        _spectrumCharts[i] = chart;
-
-        const freqs = specM.map((_, idx) => {
-            const logFreq = 20 + (idx / specM.length) * (20000 - 20);
-            return Math.round(logFreq);
-        });
-
-        chart.setOption({
-            backgroundColor: '#f8fafc',
-            animation: false,
-            grid: { top: 14, bottom: 30, left: 50, right: 16 },
-            xAxis: {
-                type: 'category',
-                data: freqs,
-                axisLine: { lineStyle: { color: '#e2e8f0' } },
-                axisTick: { show: false },
-                axisLabel: {
-                    color: '#94a3b8', fontSize: 9, fontFamily: 'IBM Plex Mono',
-                    interval: Math.floor(freqs.length / 6),
-                    formatter: v => {
-                        if (v >= 1000) return (v/1000).toFixed(1) + 'k';
-                        return v;
-                    }
-                },
-                splitLine: { show: false }
-            },
-            yAxis: {
-                type: 'value',
-                min: -100, max: 0,
-                axisLine: { show: false },
-                axisTick: { show: false },
-                axisLabel: {
-                    color: '#94a3b8', fontSize: 9, fontFamily: 'IBM Plex Mono',
-                    formatter: v => v + 'dB'
-                },
-                splitLine: { show: true, lineStyle: { color: '#e8edf4', type: 'dashed', width: 1 } }
-            },
-            series: [
-                {
-                    name: 'Master', type: 'line', data: specM,
-                    symbol: 'none',
-                    lineStyle: { color: '#3b82f6', width: 1.5, opacity: 0.9 },
-                    areaStyle: {
-                        color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                            colorStops: [
-                                { offset: 0, color: 'rgba(59,130,246,0.25)' },
-                                { offset: 1, color: 'rgba(59,130,246,0.02)' }
-                            ]
-                        }
-                    },
-                    smooth: true
-                },
-                {
-                    name: 'Dub', type: 'line', data: specD,
-                    symbol: 'none',
-                    lineStyle: { color: '#f59e0b', width: 1.5, opacity: 0.9 },
-                    areaStyle: {
-                        color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                            colorStops: [
-                                { offset: 0, color: 'rgba(245,158,11,0.25)' },
-                                { offset: 1, color: 'rgba(245,158,11,0.02)' }
-                            ]
-                        }
-                    },
-                    smooth: true
-                }
-            ],
-            legend: { show: false },
-            tooltip: {
-                trigger: 'axis',
-                backgroundColor: '#1e293b',
-                borderColor: '#334155',
-                padding: [8, 12],
-                textStyle: { color: '#cbd5e1', fontSize: 11, fontFamily: 'IBM Plex Mono' },
-                formatter: params => {
-                    const mS = params.find(p => p.seriesName === 'Master');
-                    const dS = params.find(p => p.seriesName === 'Dub');
-                    const freq = mS?.axisValue || '';
-                    return `
-                        <div style="font-weight:600;color:#fff;margin-bottom:4px;">${freq}Hz</div>
-                        <div style="display:flex;justify-content:space-between;gap:16px;">
-                            <span><span style="color:#3b82f6">●</span> Master:</span>
-                            <span style="font-weight:600">${mS?.value?.toFixed(1)}dB</span>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;gap:16px;margin-top:2px;">
-                            <span><span style="color:#f59e0b">●</span> Dub:</span>
-                            <span style="font-weight:600">${dS?.value?.toFixed(1)}dB</span>
-                        </div>
-                    `;
-                }
-            }
-        });
-    }
-
-    window.addEventListener('resize', () => {
-        Object.values(_charts).forEach(chart => { if (chart) chart.resize(); });
-        Object.values(_spectrumCharts).forEach(chart => { if (chart) chart.resize(); });
-    });
-</script>
-</body>
-</html>
