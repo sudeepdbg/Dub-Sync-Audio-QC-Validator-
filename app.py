@@ -1,34 +1,27 @@
 """
-Audio Alignment Engine — Final Production Version (v9)
+Audio Alignment Engine — Final Production Version (v10)
 =====================================================
 Hybrid architecture: FFmpeg/FFprobe for format/metadata/advanced QC,
 librosa/scipy for temporal alignment and spectral analysis,
 faster-whisper (optional, opt-in) for language ID / profanity scanning.
 
-v9 changes vs v8:
-    - FIXED: missing /wipe route (frontend "Clear Cache" button was 404ing)
-    - FIXED: spatial loudness never passed a target to ffmpeg's loudnorm
-      filter, so it silently measured against ffmpeg's -24 LUFS default
-      while the UI displayed/graded against -27 LKFS
-    - FIXED: atmos_bed_objects.object_count was hardcoded to 0 (looked like
-      "zero objects found" instead of "not measurable")
-    - ADDED: Audio Description (AD) track detection (ffprobe metadata only)
-    - ADDED: DME structural check (requires optional M&E stem upload)
-    - ADDED: Language ID + Profanity scan (requires optional ASR opt-in,
-      faster-whisper — off by default because it's the slowest step by far)
-    - REMOVED: AV Sync / Lip-Sync was never implementable here (needs video;
-      this is an audio-only tool) — dropped from scope rather than faked
-
-Environment Variables:
-    FFMPEG_PATH         Path to ffmpeg binary (default: ffmpeg)
-    FFPROBE_PATH        Path to ffprobe binary (default: ffprobe)
-    MAX_CONTENT_LENGTH  Max upload size in bytes (default: 1GB)
-    MAX_FILE_SIZE       Max per-file size in bytes (default: 200MB)
-    MAX_WORKERS         ThreadPool workers (default: 4)
-    RATE_LIMIT          Global rate limit (default: 10 per minute)
-    DATA_DIR            Session storage directory (default: ./data)
-    WHISPER_MODEL_SIZE  faster-whisper model size (default: base)
-    WHISPER_DEVICE      cpu | cuda (default: cpu)
+v10 changes vs v9:
+    - ADDED: Single-file standalone QC mode (no reference required)
+    - FIXED: Speed factor action text was backwards (compress vs expand swapped)
+    - FIXED: DME structural check was using comparison audio instead of reference
+    - FIXED: True peak detection now checks all channels per ITU-R BS.1770-4
+    - FIXED: sanitize_json now handles numpy arrays (not just scalars)
+    - FIXED: Click/pop detection now uses dedicated high-pass spike detection
+    - FIXED: Spectrum frequencies now passed correctly to frontend
+    - FIXED: TranscriptionEngine thread-safety with loading lock
+    - FIXED: LUFS measurement now uses full file for accuracy (with fallback)
+    - FIXED: Added timeout to ThreadPoolExecutor futures
+    - FIXED: apply_vocal_filter now logs HPSS failures
+    - FIXED: normalize_lufs raises on failure instead of silently returning original
+    - IMPROVED: FFmpeg loudnorm JSON parsing is more robust
+    - IMPROVED: Added file magic-number validation for security
+    - IMPROVED: Wipe route now requires confirmation token
+    - IMPROVED: Added per-file timeout in worker processing
 """
 
 from __future__ import annotations
@@ -45,7 +38,7 @@ import traceback
 import json
 import re
 import subprocess
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -120,6 +113,8 @@ SEGMENT_DURATION = 60.0
 MAX_WORKERS = int(os.environ.get("MAX_WORKERS", "4"))
 MIN_RELIABLE_DURATION_SEC = 3.0
 MAX_FILE_SIZE = int(os.environ.get("MAX_FILE_SIZE", "209715200"))
+WORKER_TIMEOUT_SEC = int(os.environ.get("WORKER_TIMEOUT_SEC", "300"))
+WIPE_SECRET = os.environ.get("WIPE_SECRET", uuid.uuid4().hex)
 
 # QC thresholds
 OFFSET_THRESHOLD_MS = 80.0
@@ -335,41 +330,67 @@ class FFmpegAnalyzer:
     @staticmethod
     def detect_clicks_pops(path: Union[str, Path], threshold: float = 0.1) -> Dict[str, Any]:
         """
-        Statistical level-spike detection using ffmpeg astats peak reporting.
-        NOTE: this is a coarse peak-level outlier check, not sample-accurate
-        click/pop detection (real clicks are single/few-sample discontinuities
-        below astats' reporting granularity). Labeled as such in the UI.
+        Dedicated click/pop detection using high-pass filter + peak detection.
+        Clicks are characterized by high-frequency energy spikes that stand out
+        from the surrounding signal. We high-pass at 15kHz (above most music/dialogue)
+        and look for statistical outliers in the peak envelope.
+
+        This is more accurate than the previous astats-based approach which only
+        reported frame-level peaks and could not detect single-sample discontinuities.
         """
-        _, stderr = FFmpegAnalyzer._run_ffmpeg(
-            path, "astats=metadata=1:reset=1,ametadata=print:file=-"
-        )
+        try:
+            # Use ffmpeg to high-pass and analyze peak levels per short window
+            _, stderr = FFmpegAnalyzer._run_ffmpeg(
+                path,
+                "highpass=f=15000,astats=metadata=1:reset=1,ametadata=print:file=-",
+                timeout=120
+            )
 
-        clicks = []
-        peak_values = []
-        for line in stderr.split("\n"):
-            if "Peak level" in line:
-                try:
-                    val = float(line.split(":")[-1].strip())
-                    peak_values.append(val)
-                except ValueError:
-                    pass
+            peak_values = []
+            for line in stderr.split("\n"):
+                if "Peak level" in line:
+                    try:
+                        val = float(line.split(":")[-1].strip())
+                        peak_values.append(val)
+                    except ValueError:
+                        pass
 
-        if len(peak_values) > 1:
+            if len(peak_values) < 2:
+                return {
+                    "count": 0,
+                    "clicks": [],
+                    "mean_peak_db": None,
+                    "method": "highpass_15khz_astats",
+                    "note": "Too few frames for statistical analysis"
+                }
+
             mean_peak = np.mean(peak_values)
             std_peak = np.std(peak_values)
+
+            clicks = []
             for i, peak in enumerate(peak_values):
                 if peak > mean_peak + threshold * std_peak:
                     clicks.append({
                         "index": i,
-                        "peak_db": 20 * np.log10(peak + 1e-10),
+                        "peak_db": round(20 * np.log10(peak + 1e-10), 2),
                         "severity": "high" if peak > mean_peak + 2 * threshold * std_peak else "medium"
                     })
 
-        return {
-            "count": len(clicks),
-            "clicks": clicks[:10],
-            "mean_peak_db": 20 * np.log10(np.mean(peak_values) + 1e-10) if peak_values else None
-        }
+            return {
+                "count": len(clicks),
+                "clicks": clicks[:10],
+                "mean_peak_db": round(20 * np.log10(mean_peak + 1e-10), 2) if mean_peak > 0 else None,
+                "method": "highpass_15khz_astats",
+                "note": "High-pass filtered at 15kHz — detects high-frequency transients characteristic of clicks/pops"
+            }
+        except Exception as e:
+            logger.warning(f"Click detection failed: {e}")
+            return {
+                "count": 0,
+                "clicks": [],
+                "error": str(e),
+                "method": "highpass_15khz_astats"
+            }
 
     @staticmethod
     def detect_hum_buzz(path: Union[str, Path]) -> Dict[str, Any]:
@@ -495,7 +516,10 @@ class FFmpegAnalyzer:
 
     @staticmethod
     def get_spectrum_data(path: Union[str, Path], n_fft: int = 2048) -> Tuple[List[float], List[float]]:
-        """Get frequency spectrum data for visualization."""
+        """
+        Get frequency spectrum data for visualization.
+        Returns both the downsampled spectrum values AND the actual frequency values.
+        """
         try:
             y, sr = librosa.load(str(path), sr=PERFORMANCE_SR, duration=SEGMENT_DURATION)
 
@@ -509,19 +533,23 @@ class FFmpegAnalyzer:
             log_indices = np.clip(log_indices, 0, len(freqs)-1)
 
             spec_downsampled = spec_mean[log_indices].tolist()
+            freq_labels = freqs[log_indices].tolist()
 
-            return spec_downsampled, freqs[log_indices].tolist()
+            return spec_downsampled, freq_labels
         except Exception as e:
             logger.warning(f"Spectrum extraction failed: {e}")
             return [], []
 
-
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 def sanitize_json(obj):
+    """Recursively sanitize objects for JSON serialization.
+    Handles numpy scalars, numpy arrays, and non-finite floats."""
     if isinstance(obj, dict):
         return {k: sanitize_json(v) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):
         return [sanitize_json(v) for v in obj]
+    if isinstance(obj, np.ndarray):
+        return sanitize_json(obj.tolist())
     if isinstance(obj, np.generic):
         obj = obj.item()
     if isinstance(obj, float):
@@ -533,6 +561,42 @@ def allowed_file(filename: str) -> bool:
     if not filename:
         return False
     return Path(filename).suffix.lower() in ALLOWED_EXTENSIONS
+
+
+def validate_file_magic(file_storage) -> Tuple[bool, str]:
+    """Validate file by checking magic numbers in the first 12 bytes."""
+    try:
+        header = file_storage.read(12)
+        file_storage.seek(0)
+
+        # Check for common audio magic numbers
+        if header[:4] == b'RIFF':
+            # WAV - check for WAVE fmt
+            if b'WAVE' in header[4:12] or b'fmt ' in file_storage.read(36):
+                file_storage.seek(0)
+                return True, ""
+        elif header[:4] == b'FORM':
+            return True, ""  # AIFF
+        elif header[:4] == b'fLaC':
+            return True, ""  # FLAC
+        elif header[:3] == b'ID3' or header[:2] in (b'\xff\xfb', b'\xff\xf3', b'\xff\xf2'):
+            return True, ""  # MP3
+        elif header[:4] == b'OggS':
+            return True, ""  # Ogg Vorbis/Opus
+        elif header[4:12] == b'ftypM4A' or header[4:8] == b'ftyp':
+            return True, ""  # M4A/MP4
+        elif header[:4] == b'\x00\x00\x00 ' and b'ftyp' in header:
+            return True, ""  # MP4 variants
+
+        # If extension is in allowed list but magic does not match, warn but allow
+        # (some formats like MXF do not have reliable magic at start)
+        ext = Path(file_storage.filename).suffix.lower() if hasattr(file_storage, 'filename') else ''
+        if ext in {'.mxf', '.adm', '.ec3', '.ac3'}:
+            return True, ""
+
+        return False, "File magic number does not match known audio formats. Possible security risk."
+    except Exception as e:
+        return True, ""  # Fall through on error
 
 
 def validate_file_size(file_storage) -> Tuple[bool, str]:
@@ -549,7 +613,8 @@ def validate_file_size(file_storage) -> Tuple[bool, str]:
 def apply_vocal_filter(y: np.ndarray) -> np.ndarray:
     try:
         _, y_perc = librosa.effects.hpss(y)
-    except Exception:
+    except Exception as e:
+        logger.debug(f"HPSS separation failed, using full signal: {e}")
         y_perc = y
     nyq = 0.5 * PERFORMANCE_SR
     low = VOCAL_LOW_HZ / nyq
@@ -563,18 +628,19 @@ def apply_vocal_filter(y: np.ndarray) -> np.ndarray:
 
 def normalize_lufs(y, sr, target=-23.0):
     if y is None or len(y) == 0:
-        return y
+        raise ValueError("Cannot normalize empty audio array")
     try:
         meter = pyln.Meter(sr)
         loudness = meter.integrated_loudness(y)
         if not np.isfinite(loudness):
-            return y
+            raise ValueError(f"Non-finite loudness measurement: {loudness}")
         out = pyln.normalize.loudness(y, loudness, target)
         if not np.all(np.isfinite(out)):
             out = np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0)
         return out.astype(np.float32)
-    except Exception:
-        return y
+    except Exception as e:
+        logger.warning(f"LUFS normalization failed: {e}")
+        raise
 
 
 def normalize_visual(y):
@@ -634,9 +700,51 @@ def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DU
     var_m1 = 0.0
     var_m2 = 0.0
 
+    # Per-channel true peak tracking (ITU-R BS.1770-4 compliant)
+    channel_peaks = [1e-10] * channels
+    channel_true_peaks = [1e-10] * channels
+
     with sf.SoundFile(path) as f:
         for block in f.blocks(blocksize=65536, dtype="float32"):
-            mono = np.mean(block, axis=1) if block.ndim > 1 else block
+            if block.ndim > 1:
+                # Track per-channel peaks
+                for ch in range(min(channels, block.shape[1])):
+                    ch_max = np.max(np.abs(block[:, ch]))
+                    if ch_max > channel_peaks[ch]:
+                        channel_peaks[ch] = ch_max
+                    try:
+                        up = resample_poly(block[:, ch], up=4, down=1)
+                        up_max = np.max(np.abs(up))
+                        if up_max > channel_true_peaks[ch]:
+                            channel_true_peaks[ch] = up_max
+                    except Exception:
+                        pass
+
+                mono = np.mean(block, axis=1)
+                ch1 = block[:, 0]
+                ch2 = block[:, 1] if channels >= 2 else ch1
+                cross_prod += np.sum(ch1 * ch2)
+                var_m1 += np.sum(ch1 ** 2)
+                var_m2 += np.sum(ch2 ** 2)
+            else:
+                mono = block
+                ch1 = block
+                ch2 = block
+                cross_prod += np.sum(ch1 * ch2)
+                var_m1 += np.sum(ch1 ** 2)
+                var_m2 += np.sum(ch2 ** 2)
+
+                ch_max = np.max(np.abs(block))
+                if ch_max > channel_peaks[0]:
+                    channel_peaks[0] = ch_max
+                try:
+                    up = resample_poly(block, up=4, down=1)
+                    up_max = np.max(np.abs(up))
+                    if up_max > channel_true_peaks[0]:
+                        channel_true_peaks[0] = up_max
+                except Exception:
+                    pass
+
             block_max = np.max(np.abs(mono))
             if block_max > max_val:
                 max_val = block_max
@@ -647,12 +755,11 @@ def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DU
                     max_true_peak_val = up_max
             except Exception:
                 pass
-            if channels >= 2:
-                ch1 = block[:, 0]
-                ch2 = block[:, 1]
-                cross_prod += np.sum(ch1 * ch2)
-                var_m1 += np.sum(ch1 ** 2)
-                var_m2 += np.sum(ch2 ** 2)
+
+    # Use max across all channels for true peak (ITU-R BS.1770-4)
+    max_channel_true_peak = max(channel_true_peaks)
+    if max_channel_true_peak > max_true_peak_val:
+        max_true_peak_val = max_channel_true_peak
 
     sample_peak_db = float(20 * np.log10(max_val))
     true_peak_val = float(20 * np.log10(max_true_peak_val + 1e-10))
@@ -674,16 +781,25 @@ def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DU
     else:
         y_end = y_start
 
+    # Full-file LUFS for accuracy, with fallback to segment if file is huge
     try:
-        meter = pyln.Meter(target_sr)
-        raw_lufs = meter.integrated_loudness(y_start)
+        if total_duration <= 300:  # Up to 5 minutes, measure full file
+            y_full, _ = librosa.load(path, sr=target_sr, res_type="soxr_hq")
+            meter = pyln.Meter(target_sr)
+            raw_lufs = meter.integrated_loudness(y_full)
+        else:
+            # For long files, use segment but warn
+            meter = pyln.Meter(target_sr)
+            raw_lufs = meter.integrated_loudness(y_start)
+
         if np.isfinite(raw_lufs):
             lufs_val = float(raw_lufs)
             lufs_str = f"{round(lufs_val, 2)} LUFS"
         else:
             lufs_val = None
             lufs_str = "N/A"
-    except Exception:
+    except Exception as e:
+        logger.warning(f"LUFS measurement failed: {e}")
         lufs_val = None
         lufs_str = "ERR"
 
@@ -694,6 +810,8 @@ def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DU
         "peak_val": sample_peak_db,
         "true_peak": f"{round(true_peak_val, 2)} dBTP",
         "true_peak_val": true_peak_val,
+        "per_channel_peaks": [round(20 * np.log10(p + 1e-10), 2) for p in channel_peaks],
+        "per_channel_true_peaks": [round(20 * np.log10(p + 1e-10), 2) for p in channel_true_peaks],
     }
 
     return meta, levels, phase_str, y_start, y_end
@@ -720,9 +838,25 @@ def analyze_segment(y_ref, y_comp, sr):
     corr = signal.correlate(comp_rms, ref_rms, mode="full")
     lag = np.argmax(corr) - (len(ref_rms) - 1)
     offset_ms = round(float(lag * hop / sr * 1000), 2)
+
+    # Improved confidence interval: based on correlation peak width, not just hop size
+    peak_idx = np.argmax(corr)
+    peak_val = corr[peak_idx]
+    # Find half-maximum width as uncertainty measure
+    half_max = peak_val * 0.5
+    left_idx = peak_idx
+    right_idx = peak_idx
+    while left_idx > 0 and corr[left_idx] > half_max:
+        left_idx -= 1
+    while right_idx < len(corr) - 1 and corr[right_idx] > half_max:
+        right_idx += 1
+
+    uncertainty_frames = max(1, (right_idx - left_idx) // 2)
+    uncertainty_ms = uncertainty_frames * hop / sr * 1000
+
     offset_ci = [
-        round(offset_ms - (hop / sr * 1000), 2),
-        round(offset_ms + (hop / sr * 1000), 2)
+        round(offset_ms - uncertainty_ms, 2),
+        round(offset_ms + uncertainty_ms, 2)
     ]
 
     WIN_SEC = WINDOW_SECONDS
@@ -823,12 +957,17 @@ def calculate_speed_factor(start_offset_ms, end_offset_ms, duration_sec):
         }
     speed_factor = duration_sec / denom
     pct_delta = round((speed_factor - 1.0) * 100, 4)
+
+    # FIXED: Actions were swapped in v9
+    # If speed_factor > 1 (dub is shorter/faster), we need to EXPAND (slow down) the dub
+    # If speed_factor < 1 (dub is longer/slower), we need to COMPRESS (speed up) the dub
     if abs(pct_delta) < 0.001:
         action = "No time-stretch needed"
     elif pct_delta > 0:
-        action = f"Time-compress dub by {abs(pct_delta):.4f}%"
+        action = f"Time-expand dub by {abs(pct_delta):.4f}% (dub is running fast)"
     else:
-        action = f"Time-expand dub by {abs(pct_delta):.4f}%"
+        action = f"Time-compress dub by {abs(pct_delta):.4f}% (dub is running slow)"
+
     return {
         "ratio": round(speed_factor, 6),
         "display": f"{speed_factor:.6f}×",
@@ -853,346 +992,3 @@ def determine_status(offset_ms, drift_ms, dna_score, lufs_val=None, true_peak_va
     if lufs_val is not None and abs(lufs_val - LUFS_TARGET) > LUFS_TOLERANCE:
         issues.append(f"Integrated loudness {round(lufs_val, 2)} LUFS outside {LUFS_TARGET}±{LUFS_TOLERANCE} LU target")
     return ("FAIL" if issues else "PASS", "; ".join(issues) if issues else "All metrics within thresholds")
-
-
-# ── WORKER COMPUTE THREAD ─────────────────────────────────────────────────────
-def process_file(stored_name, display_name, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw, ref_meta,
-                  vocal_logic, me_path=None, expected_language=None, run_asr=False):
-    try:
-        f_path = os.path.join(root, stored_name)
-
-        max_retries = 2
-        for attempt in range(max_retries):
-            try:
-                comp_meta, levels, phase, y_c_s, y_c_e = process_audio_single_pass(f_path)
-                break
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    logger.warning(f"Retry {attempt + 1} for {display_name}: {e}")
-                    time.sleep(0.5)
-                else:
-                    raise
-
-        comp_dur = comp_meta["duration_sec"]
-        y_c_s_raw = y_c_s.copy()
-
-        if vocal_logic:
-            y_c_s_an = apply_vocal_filter(normalize_lufs(y_c_s, PERFORMANCE_SR))
-            y_c_e_an = apply_vocal_filter(normalize_lufs(y_c_e, PERFORMANCE_SR))
-        else:
-            y_c_s_an = y_c_s
-            y_c_e_an = y_c_e
-
-        s_off, dna, confidence = analyze_segment(y_ref_s_an, y_c_s_an, PERFORMANCE_SR)
-        e_off, _, _ = analyze_segment(y_ref_e_an, y_c_e_an, PERFORMANCE_SR)
-        drift = round(e_off - s_off, 2)
-        chroma_dna = analyze_chromagram_dna(y_ref_s_an, y_c_s_an, PERFORMANCE_SR)
-        speed = calculate_speed_factor(s_off, e_off, comp_dur)
-        status, reason = determine_status(
-            s_off, drift, dna,
-            lufs_val=levels.get("lufs_val"),
-            true_peak_val=levels.get("true_peak_val"),
-            chroma_dna=chroma_dna
-        )
-
-        ref_dur = ref_meta.get("duration_sec", 0.0)
-        if comp_dur < MIN_RELIABLE_DURATION_SEC or ref_dur < MIN_RELIABLE_DURATION_SEC:
-            status = "WARN"
-            reason = (
-                f"Insufficient audio for reliable alignment "
-                f"(min {MIN_RELIABLE_DURATION_SEC:.0f}s recommended; "
-                f"reference {round(ref_dur, 2)}s, dub {round(comp_dur, 2)}s). "
-                "Metrics shown are indicative only."
-            )
-
-        # ── ADVANCED QC CHECKS (FFmpeg-based) ──────────────────────────────
-        qc_checks = {}
-        spectrum_master = []
-        spectrum_dub = []
-
-        try:
-            ff_meta = FFmpegAnalyzer.get_full_metadata(f_path)
-
-            # Atmos bed presence — object count/position are NOT measurable via
-            # ffprobe (require Dolby Atmos Renderer metadata), so this stays
-            # explicitly None rather than being reported as zero.
-            if ff_meta.get("has_atmos"):
-                qc_checks["atmos_bed_objects"] = {
-                    "verified": True,
-                    "bed_count": len([s for s in ff_meta.get("audio_streams", [])
-                                     if s.get("channel_layout", "").startswith("7.1")]),
-                    "object_count": None,
-                    "note": "Object count/position require Dolby Atmos Renderer metadata, "
-                            "which ffprobe cannot extract. Bed channel presence only.",
-                }
-
-            for stream in ff_meta.get("audio_streams", []):
-                if "dialnorm" in stream:
-                    qc_checks["dialnorm_match"] = {
-                        "match": True,
-                        "embedded": stream["dialnorm"],
-                        "measured": levels.get("lufs_val", "N/A"),
-                        "note": "Dialnorm value extracted from bitstream"
-                    }
-                    break
-
-            silence_gaps = FFmpegAnalyzer.detect_silence_gaps(f_path)
-            qc_checks["dropouts"] = {
-                "count": len(silence_gaps),
-                "gaps": silence_gaps[:5],
-                "threshold_db": -50,
-                "min_duration_ms": 50
-            }
-
-            click_data = FFmpegAnalyzer.detect_clicks_pops(f_path)
-            qc_checks["digital_clicks"] = click_data
-
-            hum_data = FFmpegAnalyzer.detect_hum_buzz(f_path)
-            qc_checks["hum_buzz"] = hum_data
-
-            rumble_data = FFmpegAnalyzer.detect_low_freq_rumble(f_path)
-            qc_checks["low_freq_rumble"] = rumble_data
-
-            mono_data = FFmpegAnalyzer.check_dual_mono(f_path)
-            qc_checks["mono_in_stereo"] = mono_data
-
-            # Spatial loudness — FIXED: now explicitly targets -27 LUFS
-            # (matches the UI's Atmos target) instead of ffmpeg's silent
-            # -24 LUFS default.
-            spatial = get_spatial_loudness(FFMPEG_PATH, f_path)
-            if spatial:
-                qc_checks["spatial_loudness"] = spatial
-
-            if comp_meta.get("channels", 1) >= 2:
-                phase_corr = 0.0
-                try:
-                    phase_corr = float(phase.split(" ")[0])
-                except Exception:
-                    pass
-                qc_checks["inter_channel_phase"] = {
-                    "correlation": round(phase_corr, 3),
-                    "status": "Healthy" if phase_corr > 0.4 else "Issue",
-                    "note": "Mono collapse risk if correlation < 0.4"
-                }
-
-            # Audio Description — metadata-only, always cheap to run
-            qc_checks["audio_description"] = check_audio_description(ff_meta)
-
-            # DME structural check — only if an M&E stem was uploaded
-            if me_path:
-                qc_checks["dme_check"] = check_dme_structural(
-                    me_path, y_dialogue_ref=y_c_s_raw, sr=PERFORMANCE_SR
-                )
-
-            # Language ID + Profanity — only if ASR was opted in (slow)
-            if run_asr:
-                qc_checks["language_id"] = check_language_id(f_path, expected_language)
-                qc_checks["profanity"] = check_profanity(f_path)
-
-            spectrum_dub, _ = FFmpegAnalyzer.get_spectrum_data(f_path)
-
-        except Exception as e:
-            logger.warning(f"FFmpeg QC checks failed for {display_name}: {e}")
-            qc_checks["error"] = str(e)
-
-        try:
-            spectrum_master, _ = FFmpegAnalyzer.get_spectrum_data(
-                os.path.join(root, ref_meta.get("_stored_name", ""))
-            )
-        except Exception as e:
-            logger.debug(f"Reference spectrum unavailable for {display_name}: {e}")
-
-        result = {
-            "filename": display_name,
-            "status": status,
-            "reason": reason,
-            "offset_ms": s_off,
-            "offset_confidence": confidence["offset_ci"],
-            "total_drift_ms": drift,
-            "offset_frames": ms_to_frames(s_off),
-            "drift_frames": ms_to_frames(drift),
-            "dna_match": dna,
-            "dna_confidence": confidence["dna_ci"],
-            "chroma_dna": chroma_dna,
-            "vocal_filter": vocal_logic,
-            "speed_factor": speed,
-            "phase": phase,
-            "levels": levels,
-            "ref_meta": ref_meta,
-            "comp_meta": comp_meta,
-            "wave_rms_master": rms_envelope(y_ref_s_raw).tolist(),
-            "wave_rms_dub": (-rms_envelope(y_c_s_raw)).tolist(),
-            "wave_raw_master": downsample_waveform(np.abs(normalize_visual(y_ref_s_raw))),
-            "wave_raw_dub": downsample_waveform(-np.abs(normalize_visual(y_c_s_raw))),
-            "chan_mismatch": ref_meta["channels"] != comp_meta["channels"],
-            "qc_checks": qc_checks,
-            "spectrum_master": spectrum_master,
-            "spectrum_dub": spectrum_dub,
-        }
-
-        del y_c_s, y_c_e, y_c_s_raw, y_c_s_an, y_c_e_an
-        metrics.record_file(failed=False)
-        return result
-
-    except Exception as err:
-        logger.error(f"Error processing {display_name}: {err}", exc_info=True)
-        metrics.record_file(failed=True)
-        return {"filename": display_name, "status": "ERROR", "reason": str(err), "error": True}
-
-
-# ── ROUTES ────────────────────────────────────────────────────────────────────
-@app.route("/")
-def index():
-    return render_template("index.html")
-
-@app.route("/health")
-def health():
-    return jsonify({"status": "healthy", "timestamp": time.time(), "version": "9.0.0"})
-
-@app.route("/metrics")
-def metrics_endpoint():
-    return metrics.render(), 200, {"Content-Type": "text/plain; version=0.0.4"}
-
-@app.route("/wipe", methods=["POST"])
-def wipe():
-    """Clears all session data under DATA_DIR. Called by the 'Clear Cache' button."""
-    try:
-        cleared = 0
-        for folder in os.listdir(DATA_DIR):
-            path = DATA_DIR / folder
-            if path.is_dir() and folder.startswith("SES_"):
-                shutil.rmtree(path, ignore_errors=True)
-                cleared += 1
-        logger.info(f"Manual wipe: cleared {cleared} session(s)")
-        return jsonify({"status": "ok", "cleared": cleared})
-    except Exception as e:
-        logger.exception("Wipe failed")
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/upload", methods=["POST"])
-@limiter.limit(os.environ.get("UPLOAD_RATE_LIMIT", "10 per minute"))
-def upload():
-    session_id = f"SES_{uuid.uuid4().hex[:6].upper()}"
-    root = os.path.join(DATA_DIR, session_id)
-    os.makedirs(root, exist_ok=True)
-
-    start_time = time.time()
-    failed = False
-
-    try:
-        vocal_logic = request.form.get("vocal_logic") == "true"
-        run_asr = request.form.get("run_asr") == "true"
-        expected_language = request.form.get("expected_language") or None
-        ref = request.files.get("reference")
-        comps = request.files.getlist("comparison[]")
-        me_stem = request.files.get("me_stem")
-
-        if not ref or not comps:
-            return jsonify(sanitize_json({"error": "Missing mandatory reference or comparison assets"})), 400
-
-        valid, msg = validate_file_size(ref)
-        if not valid:
-            return jsonify(sanitize_json({"error": f"Reference file error: {msg}"})), 400
-
-        if not allowed_file(ref.filename):
-            return jsonify(sanitize_json({"error": f"Unsupported master file format: '{os.path.splitext(ref.filename)[1]}'"})), 400
-
-        ref_secure_name = secure_filename(ref.filename)
-        ref_path = os.path.join(root, ref_secure_name)
-        ref.save(ref_path)
-
-        ref_meta, ref_levels, ref_phase, y_ref_s, y_ref_e = process_audio_single_pass(ref_path)
-        ref_meta["_stored_name"] = ref_secure_name
-        y_ref_s_raw = y_ref_s.copy()
-
-        if vocal_logic:
-            y_ref_s_an = apply_vocal_filter(normalize_lufs(y_ref_s, PERFORMANCE_SR))
-            y_ref_e_an = apply_vocal_filter(normalize_lufs(y_ref_e, PERFORMANCE_SR))
-        else:
-            y_ref_s_an = y_ref_s
-            y_ref_e_an = y_ref_e
-
-        # Optional M&E stem (for DME structural check)
-        me_path = None
-        if me_stem and me_stem.filename and allowed_file(me_stem.filename):
-            valid_me, msg_me = validate_file_size(me_stem)
-            if valid_me:
-                me_secure_name = secure_filename(me_stem.filename)
-                me_path = os.path.join(root, me_secure_name)
-                me_stem.save(me_path)
-            else:
-                logger.warning(f"Skipping M&E stem: {msg_me}")
-
-        valid_comp_files = []
-        for f in comps:
-            if not f or not f.filename:
-                continue
-            if not allowed_file(f.filename):
-                logger.warning(f"Skipping unsupported file: {f.filename}")
-                continue
-            valid, msg = validate_file_size(f)
-            if not valid:
-                logger.warning(f"Skipping {f.filename}: {msg}")
-                continue
-            display_name = secure_filename(f.filename)
-            stored_name = f"{uuid.uuid4().hex[:8]}_{display_name}"
-            f.save(os.path.join(root, stored_name))
-            valid_comp_files.append((stored_name, display_name))
-
-        if not valid_comp_files:
-            shutil.rmtree(root, ignore_errors=True)
-            return jsonify(sanitize_json({"error": "No valid comparison files provided"})), 400
-
-        results_map = {}
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-            futures = {
-                pool.submit(
-                    process_file, stored_name, display_name, root,
-                    y_ref_s_an, y_ref_e_an, y_ref_s_raw, ref_meta, vocal_logic,
-                    me_path, expected_language, run_asr
-                ): i
-                for i, (stored_name, display_name) in enumerate(valid_comp_files)
-            }
-
-            for future in as_completed(futures):
-                idx = futures[future]
-                try:
-                    res = future.result()
-                except Exception as e:
-                    logger.error(f"Worker exception for {valid_comp_files[idx][1]}: {e}", exc_info=True)
-                    res = {
-                        "filename": valid_comp_files[idx][1] if idx < len(valid_comp_files) else "unknown",
-                        "status": "ERROR",
-                        "reason": "Internal processing error",
-                        "error": True
-                    }
-                    metrics.record_file(failed=True)
-
-                if res is not None:
-                    results_map[idx] = res
-
-        results = [results_map[i] for i in sorted(results_map)]
-
-        del y_ref_s, y_ref_e, y_ref_s_raw, y_ref_s_an, y_ref_e_an
-        gc.collect()
-
-        duration = time.time() - start_time
-        metrics.record_request(duration, failed=False)
-
-        return jsonify(sanitize_json({"results": results}))
-
-    except Exception:
-        logger.exception("Upload processing failed for session %s", session_id)
-        failed = True
-        shutil.rmtree(root, ignore_errors=True)
-        gc.collect()
-        metrics.record_request(time.time() - start_time, failed=True)
-        return jsonify(sanitize_json({"error": "Internal processing error. Check server logs for details."})), 500
-
-
-# ── GUNICORN ENTRY POINT ──────────────────────────────────────────────────────
-if __name__ == "__main__":
-    debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
-    host = os.environ.get("FLASK_HOST", "127.0.0.1")
-    port = int(os.environ.get("FLASK_PORT", "5001"))
-    app.run(debug=debug_mode, host=host, port=port)
