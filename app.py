@@ -855,6 +855,146 @@ def determine_status(offset_ms, drift_ms, dna_score, lufs_val=None, true_peak_va
     return ("FAIL" if issues else "PASS", "; ".join(issues) if issues else "All metrics within thresholds")
 
 
+# ── SHARED ADVANCED-QC PIPELINE ──────────────────────────────────────────────
+def run_advanced_qc(f_path, comp_meta, phase, levels, y_dialogue_ref,
+                     me_path=None, expected_language=None, run_asr=False):
+    """
+    Shared QC check pipeline used by BOTH the dual-file (sync) flow and the
+    single-file (standalone) flow. Pulled out so the two flows can never
+    silently drift apart as checks get added — every check runs identically
+    regardless of whether a reference/master file was provided.
+
+    Returns (qc_checks: dict, spectrum: list[float]).
+    """
+    qc_checks: Dict[str, Any] = {}
+    spectrum: List[float] = []
+
+    try:
+        ff_meta = FFmpegAnalyzer.get_full_metadata(f_path)
+
+        # Atmos bed presence — object count/position are NOT measurable via
+        # ffprobe (require Dolby Atmos Renderer metadata), so this stays
+        # explicitly None rather than being reported as zero.
+        if ff_meta.get("has_atmos"):
+            qc_checks["atmos_bed_objects"] = {
+                "verified": True,
+                "bed_count": len([s for s in ff_meta.get("audio_streams", [])
+                                 if s.get("channel_layout", "").startswith("7.1")]),
+                "object_count": None,
+                "note": "Object count/position require Dolby Atmos Renderer metadata, "
+                        "which ffprobe cannot extract. Bed channel presence only.",
+            }
+
+        for stream in ff_meta.get("audio_streams", []):
+            if "dialnorm" in stream:
+                qc_checks["dialnorm_match"] = {
+                    "match": True,
+                    "embedded": stream["dialnorm"],
+                    "measured": levels.get("lufs_val", "N/A"),
+                    "note": "Dialnorm value extracted from bitstream"
+                }
+                break
+
+        silence_gaps = FFmpegAnalyzer.detect_silence_gaps(f_path)
+        qc_checks["dropouts"] = {
+            "count": len(silence_gaps),
+            "gaps": silence_gaps[:5],
+            "threshold_db": -50,
+            "min_duration_ms": 50
+        }
+
+        qc_checks["digital_clicks"] = FFmpegAnalyzer.detect_clicks_pops(f_path)
+        qc_checks["hum_buzz"] = FFmpegAnalyzer.detect_hum_buzz(f_path)
+        qc_checks["low_freq_rumble"] = FFmpegAnalyzer.detect_low_freq_rumble(f_path)
+        qc_checks["mono_in_stereo"] = FFmpegAnalyzer.check_dual_mono(f_path)
+
+        # Spatial loudness — explicitly targets -27 LUFS (matches the UI's
+        # Atmos target) instead of relying on ffmpeg's silent -24 LUFS default.
+        spatial = get_spatial_loudness(FFMPEG_PATH, f_path)
+        if spatial:
+            qc_checks["spatial_loudness"] = spatial
+
+        if comp_meta.get("channels", 1) >= 2:
+            phase_corr = 0.0
+            try:
+                phase_corr = float(phase.split(" ")[0])
+            except Exception:
+                pass
+            qc_checks["inter_channel_phase"] = {
+                "correlation": round(phase_corr, 3),
+                "status": "Healthy" if phase_corr > 0.4 else "Issue",
+                "note": "Mono collapse risk if correlation < 0.4"
+            }
+
+        # Audio Description — metadata-only, always cheap to run
+        qc_checks["audio_description"] = check_audio_description(ff_meta)
+
+        # DME structural check — only if an M&E stem was uploaded. Works
+        # identically in both flows: y_dialogue_ref is the raw waveform of
+        # "the file that should contain dialogue" (the dub in sync mode, or
+        # the file itself in standalone mode).
+        if me_path:
+            qc_checks["dme_check"] = check_dme_structural(
+                me_path, y_dialogue_ref=y_dialogue_ref, sr=PERFORMANCE_SR
+            )
+
+        # Language ID + Profanity — only if ASR was opted in (slow)
+        if run_asr:
+            qc_checks["language_id"] = check_language_id(f_path, expected_language)
+            qc_checks["profanity"] = check_profanity(f_path)
+
+        spectrum, _ = FFmpegAnalyzer.get_spectrum_data(f_path)
+
+    except Exception as e:
+        logger.warning(f"Advanced QC failed for {f_path}: {e}")
+        qc_checks["error"] = str(e)
+
+    return qc_checks, spectrum
+
+
+def determine_standalone_status(levels, qc_checks, duration_sec):
+    """
+    Status gate for standalone (no-reference) QC. Sync-only metrics
+    (offset/drift/DNA match) don't exist here — this checks the same
+    independent signal-quality metrics run_advanced_qc produces.
+    """
+    if duration_sec < MIN_RELIABLE_DURATION_SEC:
+        return "WARN", (
+            f"Audio too short for reliable QC (min {MIN_RELIABLE_DURATION_SEC:.0f}s "
+            f"recommended; got {round(duration_sec, 2)}s). Metrics shown are indicative only."
+        )
+
+    issues = []
+    true_peak_val = levels.get("true_peak_val")
+    lufs_val = levels.get("lufs_val")
+
+    if true_peak_val is not None and true_peak_val > TRUE_PEAK_MAX_DBTP:
+        issues.append(f"True peak {round(true_peak_val, 2)} dBTP exceeds {TRUE_PEAK_MAX_DBTP} dBTP ceiling")
+    if lufs_val is not None and abs(lufs_val - LUFS_TARGET) > LUFS_TOLERANCE:
+        issues.append(f"Integrated loudness {round(lufs_val, 2)} LUFS outside {LUFS_TARGET}±{LUFS_TOLERANCE} LU target")
+
+    dropouts = qc_checks.get("dropouts", {})
+    if dropouts.get("count", 0) >= 3:
+        issues.append(f"{dropouts['count']} silence gaps/dropouts detected")
+
+    hum = qc_checks.get("hum_buzz", {})
+    if hum.get("detected") and (hum.get("snr_db") or 0) <= 40:
+        issues.append(f"Hum/buzz detected at {hum.get('frequency')}Hz")
+
+    mono = qc_checks.get("mono_in_stereo", {})
+    if mono.get("checked") and mono.get("is_dual_mono"):
+        issues.append("Stereo file is dual-mono (identical L/R)")
+
+    clicks = qc_checks.get("digital_clicks", {})
+    if clicks.get("count", 0) >= 5:
+        issues.append(f"{clicks['count']} level spikes flagged")
+
+    return (
+        ("FAIL" if issues else "PASS"),
+        ("; ".join(issues) if issues else "All standalone QC metrics within thresholds")
+    )
+
+
 # ── WORKER COMPUTE THREAD ─────────────────────────────────────────────────────
 def process_file(stored_name, display_name, root, y_ref_s_an, y_ref_e_an, y_ref_s_raw, ref_meta,
                   vocal_logic, me_path=None, expected_language=None, run_asr=False):
@@ -905,95 +1045,13 @@ def process_file(stored_name, display_name, root, y_ref_s_an, y_ref_e_an, y_ref_
                 "Metrics shown are indicative only."
             )
 
-        # ── ADVANCED QC CHECKS (FFmpeg-based) ──────────────────────────────
-        qc_checks = {}
+        # ── ADVANCED QC CHECKS (shared pipeline — see run_advanced_qc) ─────
         spectrum_master = []
-        spectrum_dub = []
-
-        try:
-            ff_meta = FFmpegAnalyzer.get_full_metadata(f_path)
-
-            # Atmos bed presence — object count/position are NOT measurable via
-            # ffprobe (require Dolby Atmos Renderer metadata), so this stays
-            # explicitly None rather than being reported as zero.
-            if ff_meta.get("has_atmos"):
-                qc_checks["atmos_bed_objects"] = {
-                    "verified": True,
-                    "bed_count": len([s for s in ff_meta.get("audio_streams", [])
-                                     if s.get("channel_layout", "").startswith("7.1")]),
-                    "object_count": None,
-                    "note": "Object count/position require Dolby Atmos Renderer metadata, "
-                            "which ffprobe cannot extract. Bed channel presence only.",
-                }
-
-            for stream in ff_meta.get("audio_streams", []):
-                if "dialnorm" in stream:
-                    qc_checks["dialnorm_match"] = {
-                        "match": True,
-                        "embedded": stream["dialnorm"],
-                        "measured": levels.get("lufs_val", "N/A"),
-                        "note": "Dialnorm value extracted from bitstream"
-                    }
-                    break
-
-            silence_gaps = FFmpegAnalyzer.detect_silence_gaps(f_path)
-            qc_checks["dropouts"] = {
-                "count": len(silence_gaps),
-                "gaps": silence_gaps[:5],
-                "threshold_db": -50,
-                "min_duration_ms": 50
-            }
-
-            click_data = FFmpegAnalyzer.detect_clicks_pops(f_path)
-            qc_checks["digital_clicks"] = click_data
-
-            hum_data = FFmpegAnalyzer.detect_hum_buzz(f_path)
-            qc_checks["hum_buzz"] = hum_data
-
-            rumble_data = FFmpegAnalyzer.detect_low_freq_rumble(f_path)
-            qc_checks["low_freq_rumble"] = rumble_data
-
-            mono_data = FFmpegAnalyzer.check_dual_mono(f_path)
-            qc_checks["mono_in_stereo"] = mono_data
-
-            # Spatial loudness — FIXED: now explicitly targets -27 LUFS
-            # (matches the UI's Atmos target) instead of ffmpeg's silent
-            # -24 LUFS default.
-            spatial = get_spatial_loudness(FFMPEG_PATH, f_path)
-            if spatial:
-                qc_checks["spatial_loudness"] = spatial
-
-            if comp_meta.get("channels", 1) >= 2:
-                phase_corr = 0.0
-                try:
-                    phase_corr = float(phase.split(" ")[0])
-                except Exception:
-                    pass
-                qc_checks["inter_channel_phase"] = {
-                    "correlation": round(phase_corr, 3),
-                    "status": "Healthy" if phase_corr > 0.4 else "Issue",
-                    "note": "Mono collapse risk if correlation < 0.4"
-                }
-
-            # Audio Description — metadata-only, always cheap to run
-            qc_checks["audio_description"] = check_audio_description(ff_meta)
-
-            # DME structural check — only if an M&E stem was uploaded
-            if me_path:
-                qc_checks["dme_check"] = check_dme_structural(
-                    me_path, y_dialogue_ref=y_c_s_raw, sr=PERFORMANCE_SR
-                )
-
-            # Language ID + Profanity — only if ASR was opted in (slow)
-            if run_asr:
-                qc_checks["language_id"] = check_language_id(f_path, expected_language)
-                qc_checks["profanity"] = check_profanity(f_path)
-
-            spectrum_dub, _ = FFmpegAnalyzer.get_spectrum_data(f_path)
-
-        except Exception as e:
-            logger.warning(f"FFmpeg QC checks failed for {display_name}: {e}")
-            qc_checks["error"] = str(e)
+        qc_checks, spectrum_dub = run_advanced_qc(
+            f_path, comp_meta, phase, levels,
+            y_dialogue_ref=y_c_s_raw,
+            me_path=me_path, expected_language=expected_language, run_asr=run_asr,
+        )
 
         try:
             spectrum_master, _ = FFmpegAnalyzer.get_spectrum_data(
@@ -1031,6 +1089,66 @@ def process_file(stored_name, display_name, root, y_ref_s_an, y_ref_e_an, y_ref_
         }
 
         del y_c_s, y_c_e, y_c_s_raw, y_c_s_an, y_c_e_an
+        metrics.record_file(failed=False)
+        return result
+
+    except Exception as err:
+        logger.error(f"Error processing {display_name}: {err}", exc_info=True)
+        metrics.record_file(failed=True)
+        return {"filename": display_name, "status": "ERROR", "reason": str(err), "error": True}
+
+
+def process_file_standalone(stored_name, display_name, root,
+                             me_path=None, expected_language=None, run_asr=False):
+    """
+    Standalone QC — no reference/master file required. Runs every
+    check that doesn't depend on comparison against another file
+    (loudness, true peak, dropouts, hum, rumble, dual-mono, phase,
+    Atmos bed, AD, spatial loudness, and DME/Language-ID/Profanity
+    when opted in). Offset/drift/DNA-match are inherently comparative
+    metrics and are correctly absent here — not stubbed, not faked.
+    """
+    try:
+        f_path = os.path.join(root, stored_name)
+
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                meta, levels, phase, y_start, y_end = process_audio_single_pass(f_path)
+                break
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Retry {attempt + 1} for {display_name}: {e}")
+                    time.sleep(0.5)
+                else:
+                    raise
+
+        y_start_raw = y_start.copy()
+
+        qc_checks, spectrum = run_advanced_qc(
+            f_path, meta, phase, levels,
+            y_dialogue_ref=y_start_raw,
+            me_path=me_path, expected_language=expected_language, run_asr=run_asr,
+        )
+
+        status, reason = determine_standalone_status(
+            levels, qc_checks, meta.get("duration_sec", 0.0)
+        )
+
+        result = {
+            "filename": display_name,
+            "status": status,
+            "reason": reason,
+            "phase": phase,
+            "levels": levels,
+            "meta": meta,
+            "wave_rms": rms_envelope(y_start_raw).tolist(),
+            "wave_raw": downsample_waveform(np.abs(normalize_visual(y_start_raw))),
+            "qc_checks": qc_checks,
+            "spectrum": spectrum,
+        }
+
+        del y_start, y_end, y_start_raw
         metrics.record_file(failed=False)
         return result
 
@@ -1179,11 +1297,99 @@ def upload():
         duration = time.time() - start_time
         metrics.record_request(duration, failed=False)
 
-        return jsonify(sanitize_json({"results": results}))
+        return jsonify(sanitize_json({"mode": "sync", "results": results}))
 
     except Exception:
         logger.exception("Upload processing failed for session %s", session_id)
         failed = True
+        shutil.rmtree(root, ignore_errors=True)
+        gc.collect()
+        metrics.record_request(time.time() - start_time, failed=True)
+        return jsonify(sanitize_json({"error": "Internal processing error. Check server logs for details."})), 500
+
+
+@app.route("/qc", methods=["POST"])
+@limiter.limit(os.environ.get("QC_RATE_LIMIT", "10 per minute"))
+def qc_standalone():
+    """Standalone QC — one or more independent audio files, no reference/master needed."""
+    session_id = f"SES_{uuid.uuid4().hex[:6].upper()}"
+    root = os.path.join(DATA_DIR, session_id)
+    os.makedirs(root, exist_ok=True)
+
+    start_time = time.time()
+
+    try:
+        run_asr = request.form.get("run_asr") == "true"
+        expected_language = request.form.get("expected_language") or None
+        files = request.files.getlist("files[]")
+        me_stem = request.files.get("me_stem")
+
+        if not files:
+            return jsonify(sanitize_json({"error": "No audio files provided"})), 400
+
+        me_path = None
+        if me_stem and me_stem.filename and allowed_file(me_stem.filename):
+            valid_me, msg_me = validate_file_size(me_stem)
+            if valid_me:
+                me_secure_name = secure_filename(me_stem.filename)
+                me_path = os.path.join(root, me_secure_name)
+                me_stem.save(me_path)
+            else:
+                logger.warning(f"Skipping M&E stem: {msg_me}")
+
+        valid_files = []
+        for f in files:
+            if not f or not f.filename:
+                continue
+            if not allowed_file(f.filename):
+                logger.warning(f"Skipping unsupported file: {f.filename}")
+                continue
+            valid, msg = validate_file_size(f)
+            if not valid:
+                logger.warning(f"Skipping {f.filename}: {msg}")
+                continue
+            display_name = secure_filename(f.filename)
+            stored_name = f"{uuid.uuid4().hex[:8]}_{display_name}"
+            f.save(os.path.join(root, stored_name))
+            valid_files.append((stored_name, display_name))
+
+        if not valid_files:
+            shutil.rmtree(root, ignore_errors=True)
+            return jsonify(sanitize_json({"error": "No valid audio files provided"})), 400
+
+        results_map = {}
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+            futures = {
+                pool.submit(
+                    process_file_standalone, stored_name, display_name, root,
+                    me_path, expected_language, run_asr
+                ): i
+                for i, (stored_name, display_name) in enumerate(valid_files)
+            }
+            for future in as_completed(futures):
+                idx = futures[future]
+                try:
+                    res = future.result()
+                except Exception as e:
+                    logger.error(f"Worker exception for {valid_files[idx][1]}: {e}", exc_info=True)
+                    res = {
+                        "filename": valid_files[idx][1] if idx < len(valid_files) else "unknown",
+                        "status": "ERROR", "reason": "Internal processing error", "error": True
+                    }
+                    metrics.record_file(failed=True)
+                if res is not None:
+                    results_map[idx] = res
+
+        results = [results_map[i] for i in sorted(results_map)]
+        gc.collect()
+
+        duration = time.time() - start_time
+        metrics.record_request(duration, failed=False)
+
+        return jsonify(sanitize_json({"mode": "standalone", "results": results}))
+
+    except Exception:
+        logger.exception("Standalone QC failed for session %s", session_id)
         shutil.rmtree(root, ignore_errors=True)
         gc.collect()
         metrics.record_request(time.time() - start_time, failed=True)
