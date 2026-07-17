@@ -45,6 +45,16 @@
         .tagline { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: var(--mono); }
         .top-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
+        /* ── MODE TOGGLE ── */
+        .mode-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+        .mode-tab {
+            font-family: var(--sans); font-size: 13px; font-weight: 700; padding: 10px 20px;
+            border-radius: 10px; border: 1.5px solid var(--border); background: var(--card);
+            color: var(--muted); cursor: pointer; transition: all .15s;
+        }
+        .mode-tab:hover { border-color: var(--brand); color: var(--brand); }
+        .mode-tab.active { background: var(--brand); border-color: var(--brand); color: #fff; }
+
         /* ── PANEL ── */
         .panel {
             background: var(--card); border: 1px solid var(--border); border-radius: 14px;
@@ -247,8 +257,13 @@
         </div>
     </div>
 
+    <div class="mode-tabs">
+        <button class="mode-tab active" id="mode-sync" onclick="setMode('sync')">🎯 Dub Sync + QC</button>
+        <button class="mode-tab" id="mode-standalone" onclick="setMode('standalone')">🔍 Standalone Audio QC</button>
+    </div>
+
     <div class="panel">
-        <div class="field">
+        <div class="field" id="refField">
             <span class="field-lbl">Master Reference</span>
             <div class="drop">
                 <div class="fname ph" id="refName">Choose master file…</div>
@@ -256,13 +271,13 @@
             </div>
         </div>
         <div class="field">
-            <span class="field-lbl">Dub Files</span>
+            <span class="field-lbl" id="compFieldLbl">Dub Files</span>
             <div class="drop">
                 <div class="fname ph" id="compName">Choose dub files…</div>
                 <input type="file" id="compFiles" multiple accept="audio/*" onchange="onPick('compFiles','compName',true)">
             </div>
         </div>
-        <div class="tog">
+        <div class="tog" id="vocalDnaField">
             <input type="checkbox" id="vocalDna" checked>
             <label for="vocalDna" title="HPSS percussive separation + 300–3400Hz bandpass. Isolates speech transients for more accurate onset DNA scoring.">Vocal DNA Filter</label>
         </div>
@@ -313,8 +328,26 @@
 
 <script>
     let currentRawData = null;
+    let currentMode = 'sync';
     const _charts = {};
     const _spectrumCharts = {};
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.getElementById('mode-sync').classList.toggle('active', mode === 'sync');
+        document.getElementById('mode-standalone').classList.toggle('active', mode === 'standalone');
+
+        document.getElementById('refField').style.display = mode === 'sync' ? '' : 'none';
+        document.getElementById('vocalDnaField').style.display = mode === 'sync' ? '' : 'none';
+        document.getElementById('compFieldLbl').textContent = mode === 'sync' ? 'Dub Files' : 'Audio Files to QC';
+        document.getElementById('compName').textContent = mode === 'sync' ? 'Choose dub files…' : 'Choose audio files…';
+
+        // Clear any previous results — the two modes render different card shapes
+        document.getElementById('results').innerHTML = '';
+        document.getElementById('sumBar').classList.remove('on');
+        document.getElementById('topDlBtn').classList.remove('on');
+        currentRawData = null;
+    }
 
     function x(str) {
         if (str === null || str === undefined) return '';
@@ -360,14 +393,31 @@
     }
 
     async function runQC() {
-        const ref   = document.getElementById('refFile').files[0];
-        const comps = document.getElementById('compFiles').files;
         const meFile = document.getElementById('meFile').files[0];
         const runAsr = document.getElementById('runAsr').checked;
         const expectedLang = document.getElementById('expectedLang').value.trim();
+        const comps = document.getElementById('compFiles').files;
 
-        if (!ref)          { alert('Please select a master reference file.'); return; }
-        if (!comps.length) { alert('Please select at least one dub file.'); return; }
+        if (!comps.length) { alert(currentMode === 'sync' ? 'Please select at least one dub file.' : 'Please select at least one audio file.'); return; }
+
+        const fd = new FormData();
+        let endpoint;
+
+        if (currentMode === 'sync') {
+            const ref = document.getElementById('refFile').files[0];
+            if (!ref) { alert('Please select a master reference file.'); return; }
+            fd.append('reference', ref);
+            for (const f of comps) fd.append('comparison[]', f);
+            fd.append('vocal_logic', document.getElementById('vocalDna').checked);
+            endpoint = '/upload';
+        } else {
+            for (const f of comps) fd.append('files[]', f);
+            endpoint = '/qc';
+        }
+
+        if (meFile) fd.append('me_stem', meFile);
+        fd.append('run_asr', runAsr);
+        if (expectedLang) fd.append('expected_language', expectedLang);
 
         document.getElementById('results').innerHTML = '';
         document.getElementById('sumBar').classList.remove('on');
@@ -375,16 +425,8 @@
             ? `Analyzing ${comps.length} file${comps.length > 1 ? 's' : ''} (ASR enabled — this takes longer)…`
             : `Analyzing ${comps.length} file${comps.length > 1 ? 's' : ''}…`);
 
-        const fd = new FormData();
-        fd.append('reference', ref);
-        for (const f of comps) fd.append('comparison[]', f);
-        fd.append('vocal_logic', document.getElementById('vocalDna').checked);
-        if (meFile) fd.append('me_stem', meFile);
-        fd.append('run_asr', runAsr);
-        if (expectedLang) fd.append('expected_language', expectedLang);
-
         try {
-            const res = await fetch('/upload', { method: 'POST', body: fd });
+            const res = await fetch(endpoint, { method: 'POST', body: fd });
             currentRawData = await res.json();
             if (!res.ok || currentRawData.error) { showError(currentRawData.error || 'Unknown server error'); return; }
         } catch(e) { showError(`Network error: ${e.message}`); return; }
@@ -422,7 +464,11 @@
 
         const container = document.getElementById('results');
         container.innerHTML = '';
-        results.forEach((r, i) => renderCard(r, i, container));
+        const mode = data.mode || currentMode;
+        results.forEach((r, i) => {
+            if (mode === 'standalone') renderStandaloneCard(r, i, container);
+            else renderCard(r, i, container);
+        });
     }
 
     // ── CONFIDENCE HELPERS ──
@@ -779,14 +825,185 @@
         }
     }
 
-    function switchTab(cardIdx, tabName) {
-        ['sync', 'qc', 'spectrum'].forEach(t => {
-            const btn = document.getElementById(`tab-${t}-${cardIdx}`);
-            if (btn) btn.classList.toggle('active', t === tabName);
+    function renderStandaloneCard(r, i, container) {
+        const div = document.createElement('div');
+        const domId = `sa-${i}`;
+
+        if (r.error) {
+            div.className = 'rc ec';
+            div.innerHTML = `
+                <div class="rc-head">
+                    <div><h3>${x(r.filename)}</h3><div class="rsub" style="color:var(--danger)">Processing failed</div></div>
+                    <span class="badge be">ERROR</span>
+                </div>
+                <pre style="font-size:12px;color:#7f1d1d;white-space:pre-wrap;font-family:var(--mono)">${x(r.reason)}</pre>`;
+            container.appendChild(div);
+            return;
+        }
+
+        const lv = r.levels || {};
+        const qc = r.qc_checks || null;
+        const peakAl = (lv.true_peak_val ?? -99) > -2.0;
+        const lufsAl = lv.lufs_val !== null && lv.lufs_val !== undefined && Math.abs(lv.lufs_val - (-23.0)) > 1.0;
+
+        div.className = 'rc';
+        div.innerHTML = `
+            <div class="rc-head">
+                <div>
+                    <h3>${x(r.filename)}</h3>
+                    <div class="rsub">${x(r.reason)}</div>
+                </div>
+                <span class="badge ${r.status === 'PASS' ? 'bp' : (r.status === 'WARN' ? 'be' : 'bf')}">${r.status}</span>
+            </div>
+
+            <div class="tab-bar">
+                <button class="tab-btn active" onclick="switchTab('${domId}', 'levels')" id="tab-levels-${domId}">📏 Levels &amp; QC</button>
+                <button class="tab-btn" onclick="switchTab('${domId}', 'spectrum')" id="tab-spectrum-${domId}">📊 Spectrum</button>
+            </div>
+
+            <div class="tab-panel active" id="panel-levels-${domId}">
+                <div class="sg sg-5">
+                    <div class="sb ${lufsAl ? 'wn' : ''}">
+                        <div class="sb-lbl">Integrated Loudness</div>
+                        <div class="sb-val">${x(lv.lufs)}</div>
+                    </div>
+                    <div class="sb">
+                        <div class="sb-lbl">Sample Peak</div>
+                        <div class="sb-val">${x(lv.peak)}</div>
+                    </div>
+                    <div class="sb ${peakAl ? 'al' : ''}">
+                        <div class="sb-lbl">True Peak</div>
+                        <div class="sb-val">${x(lv.true_peak)}</div>
+                    </div>
+                    <div class="sb">
+                        <div class="sb-lbl">Phase Health</div>
+                        <div class="sb-val" style="font-size:12px">${x(r.phase)}</div>
+                    </div>
+                    <div class="sb">
+                        <div class="sb-lbl">Duration</div>
+                        <div class="sb-val" style="font-size:13px">${x(r.meta?.duration)}</div>
+                    </div>
+                </div>
+
+                <div class="meta-wrap">
+                    <table class="mt">
+                        <thead><tr><th>Property</th><th>Value</th></tr></thead>
+                        <tbody>
+                            <tr><td>Sample Rate</td><td>${x(r.meta?.sr)}</td></tr>
+                            <tr><td>Channels</td><td>${x(r.meta?.channel_label)}</td></tr>
+                            <tr><td>Bit Depth / Format</td><td>${x(r.meta?.bit_depth)}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="info-strip">
+                    <div class="strip-title">🔍 Advanced Quality Control Checks</div>
+                    <div class="qc-list">${renderQCChecks(qc)}</div>
+                </div>
+
+                <div class="wave-wrap">
+                    <div class="wave-head">
+                        <div class="wave-title"><strong>Waveform</strong> &nbsp;·&nbsp; RMS envelope · First 60s</div>
+                    </div>
+                    <div class="wave-box" id="wv-${domId}"></div>
+                </div>
+            </div>
+
+            <div class="tab-panel" id="panel-spectrum-${domId}">
+                <div class="info-strip">
+                    <div class="strip-title">📊 Frequency Spectrum</div>
+                    <div class="spectrum-box" id="spectrum-${domId}"></div>
+                </div>
+            </div>
+        `;
+
+        container.appendChild(div);
+        if (r.wave_rms?.length) renderWaveSingle(domId, r.wave_rms);
+        if (r.spectrum?.length) renderSpectrumSingle(domId, r.spectrum);
+    }
+
+    function renderWaveSingle(domId, wave) {
+        const el = document.getElementById(`wv-${domId}`);
+        if (!el || !wave?.length) return;
+        const chart = echarts.init(el, null, { renderer: 'canvas' });
+        _charts[domId] = chart;
+        chart.setOption({
+            backgroundColor: '#f8fafc',
+            animation: false,
+            grid: { top: 14, bottom: 14, left: 46, right: 16 },
+            xAxis: { type: 'category', boundaryGap: false, axisLine: { lineStyle: { color: '#e2e8f0' } }, axisTick: { show: false }, axisLabel: { show: false }, splitLine: { show: false } },
+            yAxis: {
+                type: 'value', min: 0, max: 1.1, interval: 0.5,
+                axisLine: { show: false }, axisTick: { show: false },
+                axisLabel: { color: '#94a3b8', fontSize: 9, fontFamily: 'IBM Plex Mono' },
+                splitLine: { show: true, lineStyle: { color: '#e8edf4', type: 'dashed', width: 1 } }
+            },
+            series: [{
+                type: 'line', data: wave, symbol: 'none',
+                lineStyle: { color: '#3b82f6', width: 1.2, opacity: 0.95 },
+                areaStyle: {
+                    color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
+                        { offset: 0, color: 'rgba(59,130,246,0.35)' }, { offset: 1, color: 'rgba(59,130,246,0.03)' }
+                    ]}
+                },
+                large: true, largeThreshold: 500
+            }],
+            tooltip: {
+                trigger: 'axis', backgroundColor: '#1e293b', borderColor: '#334155', padding: [8, 12],
+                textStyle: { color: '#cbd5e1', fontSize: 11, fontFamily: 'IBM Plex Mono' },
+                formatter: params => `RMS: ${(params[0]?.value ?? 0).toFixed(3)}`
+            }
         });
-        ['sync', 'qc', 'spectrum'].forEach(t => {
-            const panel = document.getElementById(`panel-${t}-${cardIdx}`);
-            if (panel) panel.classList.toggle('active', t === tabName);
+    }
+
+    function renderSpectrumSingle(domId, spec) {
+        const el = document.getElementById(`spectrum-${domId}`);
+        if (!el || !spec?.length) return;
+        const chart = echarts.init(el, null, { renderer: 'canvas' });
+        _spectrumCharts[domId] = chart;
+        const freqs = spec.map((_, idx) => Math.round(20 + (idx / spec.length) * (20000 - 20)));
+        chart.setOption({
+            backgroundColor: '#f8fafc',
+            animation: false,
+            grid: { top: 14, bottom: 30, left: 50, right: 16 },
+            xAxis: {
+                type: 'category', data: freqs, axisLine: { lineStyle: { color: '#e2e8f0' } }, axisTick: { show: false },
+                axisLabel: { color: '#94a3b8', fontSize: 9, fontFamily: 'IBM Plex Mono', interval: Math.floor(freqs.length / 6),
+                    formatter: v => v >= 1000 ? (v/1000).toFixed(1) + 'k' : v },
+                splitLine: { show: false }
+            },
+            yAxis: {
+                type: 'value', min: -100, max: 0, axisLine: { show: false }, axisTick: { show: false },
+                axisLabel: { color: '#94a3b8', fontSize: 9, fontFamily: 'IBM Plex Mono', formatter: v => v + 'dB' },
+                splitLine: { show: true, lineStyle: { color: '#e8edf4', type: 'dashed', width: 1 } }
+            },
+            series: [{
+                type: 'line', data: spec, symbol: 'none', smooth: true,
+                lineStyle: { color: '#3b82f6', width: 1.5, opacity: 0.9 },
+                areaStyle: {
+                    color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
+                        { offset: 0, color: 'rgba(59,130,246,0.25)' }, { offset: 1, color: 'rgba(59,130,246,0.02)' }
+                    ]}
+                }
+            }],
+            tooltip: {
+                trigger: 'axis', backgroundColor: '#1e293b', borderColor: '#334155', padding: [8, 12],
+                textStyle: { color: '#cbd5e1', fontSize: 11, fontFamily: 'IBM Plex Mono' },
+                formatter: params => `${params[0]?.axisValue}Hz: ${(params[0]?.value ?? 0).toFixed(1)}dB`
+            }
+        });
+    }
+
+    function switchTab(cardIdx, tabName) {
+        // Generic: works for any tab-bar, regardless of how many tabs it has
+        // (sync cards have 3: sync/qc/spectrum; standalone cards have 2: levels/spectrum).
+        document.querySelectorAll(`[id^="tab-"][id$="-${cardIdx}"]`).forEach(btn => {
+            const t = btn.id.replace(/^tab-/, '').replace(new RegExp(`-${cardIdx}$`), '');
+            btn.classList.toggle('active', t === tabName);
+        });
+        document.querySelectorAll(`[id^="panel-"][id$="-${cardIdx}"]`).forEach(panel => {
+            const t = panel.id.replace(/^panel-/, '').replace(new RegExp(`-${cardIdx}$`), '');
+            panel.classList.toggle('active', t === tabName);
         });
         if (tabName === 'spectrum') {
             const chart = _spectrumCharts[cardIdx];
