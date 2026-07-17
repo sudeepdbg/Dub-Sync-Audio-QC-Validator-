@@ -1,4 +1,5 @@
 #Dub Sync & Audio QC Validator (v9)
+Author- Sudeep Kumar | sudeepdbg@gmail.com | +919590675753
 
 Broadcast/OTT localization QC tool. Two modes:
 
@@ -158,6 +159,53 @@ since there's nothing to compare against.
 | Profanity scan | `run_asr=true` | Text-match on ASR transcript; won't catch mis-transcriptions and by design won't flag bleeped/censored audio |
 | AV Sync / Lip-Sync | — | **Not implemented.** Requires a video file; this is an audio-only tool. Not present in the UI. |
 
+## Summary — what the output actually tells you
+
+Every result — sync mode or standalone — comes back with three layers.
+Read them in this order.
+
+**1. `status` + `reason` — the headline.**
+`PASS` / `WARN` / `FAIL` / `ERROR`. `reason` is a semicolon-separated list of
+exactly which thresholds were breached (or "All metrics within thresholds").
+This is a *gate*, not a full report — a file can say `PASS` here and still
+have something like a missing AD track or an unmeasured Atmos object count
+sitting further down, because those are `skip`/`info` states, not
+pass/fail-worthy on their own. Always open the Advanced QC tab, don't just
+read the badge.
+
+**2. Sync metrics (sync mode only) — is it the same performance, in time?**
+- `offset_ms` / `offset_confidence` — how far the dub's start is shifted
+  from the master, and how tight that estimate is (a wide confidence
+  interval means treat the number as approximate, not exact).
+- `total_drift_ms` — how much the offset changes between the start and end
+  of the file. Non-zero drift usually means a frame-rate/speed mismatch
+  rather than a simple sync error — check `speed_factor` next.
+- `speed_factor` — the clock-rate ratio implied by that drift, with a
+  concrete action (e.g. "Time-compress dub by 0.0412%").
+- `dna_match` / `chroma_dna` — two independent similarity scores between
+  master and dub (onset-transient correlation vs. spectral/harmonic
+  correlation). Low `dna_match` with high `chroma_dna` (or vice versa)
+  usually means one algorithm is a better fit for that content type —
+  worth a manual listen rather than trusting either score alone.
+
+**3. `qc_checks` — everything else, per-check.**
+Every entry in `qc_checks` follows the same shape: it either ran and
+produced a real measurement, or it didn't run and says so — there is
+deliberately no in-between "assumed passing" state. In the UI this is the
+`pass` / `warn` / `fail` / `info` / `skip` badge; in the raw JSON it's
+whatever fields that check documents (see the capability matrix below) plus,
+for most checks, an explicit reason when it didn't run (`"No M&E stem
+provided"`, `"Not Atmos-flagged content"`, etc.). If you're consuming the
+JSON programmatically rather than reading the UI, treat a missing key or a
+`null` value as "not measured," never as "measured and clean."
+
+**Standalone mode's status gate is narrower than sync mode's.** With no
+reference file, `determine_standalone_status()` only gates on loudness,
+true peak, dropout count, hum/buzz, dual-mono, and level spikes — there's no
+offset/drift/DNA equivalent because there's nothing to compare against.
+A `PASS` in standalone mode means "this file's own signal quality is within
+bounds," not "this file matches something else."
+
 ## Known limitations
 
 - **First-10s / first-5s sampling** on hum, rumble, and dual-mono checks
@@ -179,9 +227,16 @@ since there's nothing to compare against.
 
 ## Frontend notes
 
+- The UI is intentionally plain: dark background, monospace throughout, flat
+  1px borders, no drop shadows, no gradients, no rounded corners, no emoji.
+  Status is communicated with bracket-style text (`[PASS]`, `[FAIL]`) and
+  color, not icons or pills. Charts use solid low-opacity fills instead of
+  gradient area fills. If you want a more polished/branded look later, the
+  CSS custom properties at the top of the `<style>` block (`--brand`,
+  `--bg`, `--card`, etc.) are the only place you should need to touch.
 - `qc-list` badge states are `pass` / `warn` / `fail` / `info` / `skip`.
-  `skip` means "not run" — it's rendered gray, never as a red failure, so a
-  check that wasn't performed can never look like a check that failed.
+  `skip` means "not run" — it's rendered dim/gray, never as a red failure, so
+  a check that wasn't performed can never look like a check that failed.
 - Sync-mode cards have 3 tabs (Sync Analysis / Advanced QC / Spectrum);
   standalone cards have 2 (Levels & QC / Spectrum). `switchTab()` is generic
   and works off DOM id matching, so it doesn't need to know which tab set
