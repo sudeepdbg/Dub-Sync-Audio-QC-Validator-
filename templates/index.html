@@ -4,231 +4,251 @@
     <meta charset="UTF-8">
     <title>Sync Engine Pro | Studio QC</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --brand:      #2f6ef5;
-            --brand-dim:  rgba(47,110,245,0.07);
-            --brand-sec:  #7c3aed;
-            --brand-atmos:#d946ef;
-            --bg:         #eef1f7;
-            --card:       #ffffff;
-            --text:       #0d1526;
-            --muted:      #64748b;
-            --border:     #dde3ec;
-            --danger:     #dc2626;
-            --danger-bg:  #fff5f5;
-            --danger-bd:  #fca5a5;
-            --success:    #059669;
-            --success-bg: #f0fdf9;
-            --success-bd: #6ee7b7;
-            --warn:       #d97706;
-            --warn-bg:    #fffbeb;
-            --warn-bd:    #fcd34d;
-            --info:       #0369a1;
-            --info-bg:    #f0f9ff;
-            --info-bd:    #bae6fd;
-            --mono: 'IBM Plex Mono', monospace;
-            --sans: 'IBM Plex Sans', sans-serif;
+            --bg:         #0a0d0f;
+            --card:       #10161a;
+            --card-alt:   #0d1215;
+            --text:       #c9d6d9;
+            --text-dim:   #7c8b90;
+            --muted:      #5a6b70;
+            --border:     #23303580 solid;
+            --border-col: #263238;
+            --brand:      #3ddc84;
+            --brand-dim:  rgba(61,220,132,0.08);
+            --danger:     #ef5350;
+            --danger-bg:  rgba(239,83,80,0.08);
+            --danger-bd:  rgba(239,83,80,0.35);
+            --success:    #3ddc84;
+            --success-bg: rgba(61,220,132,0.08);
+            --success-bd: rgba(61,220,132,0.35);
+            --warn:       #e0b341;
+            --warn-bg:    rgba(224,179,65,0.08);
+            --warn-bd:    rgba(224,179,65,0.35);
+            --info:       #4fc3f7;
+            --info-bg:    rgba(79,195,247,0.08);
+            --info-bd:    rgba(79,195,247,0.35);
+            --mono: 'IBM Plex Mono', 'Consolas', monospace;
+            --sans: 'IBM Plex Mono', 'Consolas', monospace;
         }
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html { font-size: 14px; }
-        body { font-family: var(--sans); background: var(--bg); color: var(--text); padding: 32px 24px; min-height: 100vh; }
-        .page { max-width: 1200px; margin: 0 auto; }
+        html { font-size: 13px; }
+        body { font-family: var(--mono); background: var(--bg); color: var(--text); padding: 28px 20px; min-height: 100vh; }
+        .page { max-width: 1180px; margin: 0 auto; }
+        ::selection { background: var(--brand); color: #000; }
 
         /* ── TOP BAR ── */
-        .topbar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
-        .logo { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; display: flex; align-items: baseline; gap: 6px; }
+        .topbar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--border-col); padding-bottom: 16px; }
+        .logo { font-size: 17px; font-weight: 700; letter-spacing: 0.5px; display: flex; align-items: baseline; gap: 8px; text-transform: uppercase; }
+        .logo::before { content: '$ '; color: var(--muted); font-weight: 400; }
         .logo .accent { color: var(--brand); }
-        .logo .ver { font-size: 10px; font-weight: 500; color: var(--muted); font-family: var(--mono); background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
-        .tagline { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: var(--mono); }
-        .top-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .logo .ver { font-size: 10px; font-weight: 500; color: var(--muted); background: var(--card); border: 1px solid var(--border-col); padding: 1px 6px; }
+        .tagline { font-size: 11px; color: var(--text-dim); margin-top: 6px; }
+        .tagline::before { content: '# '; color: var(--muted); }
+        .top-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
         /* ── MODE TOGGLE ── */
-        .mode-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+        .mode-tabs { display: flex; gap: 0; margin-bottom: 14px; border: 1px solid var(--border-col); width: fit-content; }
         .mode-tab {
-            font-family: var(--sans); font-size: 13px; font-weight: 700; padding: 10px 20px;
-            border-radius: 10px; border: 1.5px solid var(--border); background: var(--card);
-            color: var(--muted); cursor: pointer; transition: all .15s;
+            font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.5px; padding: 9px 18px;
+            border: none; border-right: 1px solid var(--border-col); background: var(--card);
+            color: var(--text-dim); cursor: pointer; transition: background .1s, color .1s; text-transform: uppercase;
         }
-        .mode-tab:hover { border-color: var(--brand); color: var(--brand); }
-        .mode-tab.active { background: var(--brand); border-color: var(--brand); color: #fff; }
+        .mode-tab:last-child { border-right: none; }
+        .mode-tab:hover { color: var(--text); background: var(--card-alt); }
+        .mode-tab.active { background: var(--brand-dim); color: var(--brand); }
 
         /* ── PANEL ── */
         .panel {
-            background: var(--card); border: 1px solid var(--border); border-radius: 14px;
-            padding: 18px 22px; display: flex; align-items: flex-end; gap: 14px;
-            margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); flex-wrap: wrap;
+            background: var(--card); border: 1px solid var(--border-col);
+            padding: 16px 18px; display: flex; align-items: flex-end; gap: 14px;
+            margin-bottom: 14px; flex-wrap: wrap;
         }
         .field { flex: 1; min-width: 200px; }
-        .field-lbl { display: block; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; font-family: var(--mono); }
-        .drop { position: relative; border: 1.5px dashed var(--border); border-radius: 8px; padding: 9px 13px; cursor: pointer; background: var(--bg); transition: border-color .15s, background .15s; overflow: hidden; }
-        .drop:hover { border-color: var(--brand); background: var(--brand-dim); }
+        .field-lbl { display: block; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+        .drop { position: relative; border: 1px dashed var(--border-col); padding: 9px 13px; cursor: pointer; background: var(--card-alt); transition: border-color .1s; overflow: hidden; }
+        .drop:hover { border-color: var(--brand); }
         .drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
-        .drop .fname { font-size: 12px; font-family: var(--mono); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .drop .fname { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .drop .fname.ph { color: var(--muted); }
 
         .tog { display: flex; align-items: center; gap: 7px; padding-bottom: 2px; white-space: nowrap; }
-        .tog label { font-size: 13px; font-weight: 600; cursor: pointer; }
-        input[type=checkbox] { accent-color: var(--brand); width: 15px; height: 15px; cursor: pointer; }
-        input[type=text] { font-family: var(--mono); font-size: 12px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); width: 100%; color: var(--text); }
+        .tog label { font-size: 12px; font-weight: 600; cursor: pointer; color: var(--text); }
+        input[type=checkbox] { accent-color: var(--brand); width: 14px; height: 14px; cursor: pointer; }
+        input[type=text] { font-family: var(--mono); font-size: 12px; padding: 9px 11px; border: 1px solid var(--border-col); background: var(--card-alt); width: 100%; color: var(--text); }
+        input[type=text]::placeholder { color: var(--muted); }
         input[type=text]:focus { outline: none; border-color: var(--brand); }
 
-        .btn-primary { background: var(--brand); color: #fff; border: none; padding: 10px 24px; border-radius: 8px; font-family: var(--sans); font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap; transition: opacity .15s, transform .1s; }
-        .btn-primary:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
-        .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+        .btn-primary { background: var(--brand); color: #06110a; border: 1px solid var(--brand); padding: 9px 22px; font-family: var(--mono); font-weight: 700; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer; white-space: nowrap; transition: opacity .1s; }
+        .btn-primary:hover:not(:disabled) { opacity: .85; }
+        .btn-primary:disabled { opacity: .35; cursor: not-allowed; }
 
-        .btn-ghost { background: none; color: var(--muted); border: 1px solid var(--border); padding: 8px 15px; border-radius: 8px; font-family: var(--sans); font-size: 12px; font-weight: 600; cursor: pointer; transition: color .18s, border-color .18s; }
+        .btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border-col); padding: 8px 14px; font-family: var(--mono); font-size: 11px; font-weight: 600; text-transform: uppercase; cursor: pointer; transition: color .1s, border-color .1s; }
         .btn-ghost:hover { color: var(--danger); border-color: var(--danger); }
 
-        .btn-download { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-bd); padding: 8px 15px; border-radius: 8px; font-family: var(--sans); font-size: 12px; font-weight: 700; cursor: pointer; display: none; align-items: center; gap: 6px; transition: background .15s; }
+        .btn-download { background: transparent; color: var(--brand); border: 1px solid var(--success-bd); padding: 8px 14px; font-family: var(--mono); font-size: 11px; font-weight: 700; text-transform: uppercase; cursor: pointer; display: none; align-items: center; gap: 6px; }
         .btn-download.on { display: flex; }
-        .btn-download:hover { background: #e6fbf4; }
+        .btn-download:hover { background: var(--success-bg); }
 
         /* ── SECONDARY OPTIONS ROW ── */
-        .panel-2 { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px 22px; display: flex; align-items: flex-end; gap: 18px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); flex-wrap: wrap; }
+        .panel-2 { background: var(--card); border: 1px solid var(--border-col); padding: 12px 18px; display: flex; align-items: flex-end; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
         .panel-2 .field { min-width: 180px; flex: 0 1 220px; }
         .panel-2 .field.grow { flex: 1 1 220px; }
 
         /* ── SUMMARY BAR ── */
-        .sum-bar { display: none; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 13px 20px; margin-bottom: 20px; gap: 24px; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.04); flex-wrap: wrap; }
+        .sum-bar { display: none; background: var(--card); border: 1px solid var(--border-col); padding: 12px 18px; margin-bottom: 14px; gap: 22px; align-items: center; flex-wrap: wrap; }
         .sum-bar.on { display: flex; }
-        .ss .v { font-size: 22px; font-weight: 700; font-family: var(--mono); line-height: 1; }
-        .ss .l { font-size: 9px; font-weight: 700; letter-spacing: 1.3px; color: var(--muted); text-transform: uppercase; margin-top: 2px; font-family: var(--mono); }
+        .ss .v { font-size: 20px; font-weight: 700; line-height: 1; }
+        .ss .l { font-size: 9px; font-weight: 700; letter-spacing: 1.3px; color: var(--muted); text-transform: uppercase; margin-top: 2px; }
         .ss.ok .v { color: var(--success); }
         .ss.bad .v { color: var(--danger); }
         .ss.warn .v { color: var(--warn); }
-        .sd { width: 1px; height: 28px; background: var(--border); }
+        .sd { width: 1px; height: 26px; background: var(--border-col); }
 
         /* ── LOADER ── */
-        #loader { display: none; text-align: center; padding: 56px 20px; }
+        #loader { display: none; text-align: left; padding: 34px 4px; font-size: 12px; color: var(--text-dim); }
         #loader.on { display: block; }
-        .spin { width: 38px; height: 38px; border: 3px solid var(--border); border-top-color: var(--brand); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 14px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        #loader .lm { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
-        #loader .ls { font-size: 12px; color: var(--muted); }
+        .spin { display: inline-block; width: 8px; }
+        #loader .lm { font-size: 13px; font-weight: 700; color: var(--brand); margin-bottom: 4px; }
+        #loader .lm::before { content: '> '; }
+        #loader .ls { font-size: 11px; color: var(--muted); }
 
         /* ── ERROR ── */
-        .err { display: none; background: var(--danger-bg); border: 1px solid var(--danger-bd); border-radius: 10px; padding: 13px 17px; margin-bottom: 18px; }
+        .err { display: none; background: var(--danger-bg); border: 1px solid var(--danger-bd); padding: 12px 16px; margin-bottom: 16px; }
         .err.on { display: block; }
-        .err strong { color: var(--danger); font-size: 13px; }
-        .err pre { margin-top: 7px; font-size: 11px; font-family: var(--mono); color: #7f1d1d; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow-y: auto; }
+        .err strong { color: var(--danger); font-size: 12px; }
+        .err strong::before { content: '! '; }
+        .err pre { margin-top: 7px; font-size: 11px; color: #ff9a9a; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow-y: auto; }
 
         /* ── RESULT CARD ── */
-        .rc { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 14px rgba(0,0,0,0.03); }
+        .rc { background: var(--card); border: 1px solid var(--border-col); padding: 18px; margin-bottom: 16px; }
         .rc.ec { border-color: var(--danger-bd); background: var(--danger-bg); }
-        .rc-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
-        .rc-head h3 { font-size: 14px; font-weight: 700; font-family: var(--mono); word-break: break-all; }
-        .rc-head .rsub { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+        .rc-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--border-col); padding-bottom: 12px; }
+        .rc-head h3 { font-size: 13px; font-weight: 700; word-break: break-all; color: var(--text); }
+        .rc-head .rsub { font-size: 11px; color: var(--text-dim); margin-top: 3px; line-height: 1.5; }
 
-        .badge { padding: 3px 12px; border-radius: 20px; font-weight: 700; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; margin-left: 10px; flex-shrink: 0; font-family: var(--mono); }
-        .bp { background: var(--success-bg); color: #065f46; border: 1px solid var(--success-bd); }
-        .bf { background: var(--danger-bg);  color: #991b1b; border: 1px solid var(--danger-bd); }
-        .be { background: var(--warn-bg);    color: #92400e; border: 1px solid var(--warn-bd); }
+        .badge { padding: 2px 10px; font-weight: 700; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; margin-left: 10px; flex-shrink: 0; border: 1px solid; }
+        .badge::before { content: '[ '; }
+        .badge::after { content: ' ]'; }
+        .bp { background: var(--success-bg); color: var(--success); border-color: var(--success-bd); }
+        .bf { background: var(--danger-bg);  color: var(--danger);  border-color: var(--danger-bd); }
+        .be { background: var(--warn-bg);    color: var(--warn);    border-color: var(--warn-bd); }
 
         /* ── TABS ── */
-        .tab-bar { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid var(--border); padding-bottom: 2px; }
-        .tab-btn { font-size: 11px; font-weight: 700; font-family: var(--mono); padding: 8px 16px; border-radius: 8px 8px 0 0; cursor: pointer; border: none; background: transparent; color: var(--muted); transition: all .15s; letter-spacing: 0.5px; position: relative; }
-        .tab-btn:hover { color: var(--brand); background: var(--brand-dim); }
-        .tab-btn.active { color: var(--brand); background: var(--brand-dim); }
-        .tab-btn.active::after { content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 2px; background: var(--brand); }
+        .tab-bar { display: flex; gap: 0; margin-bottom: 14px; border-bottom: 1px solid var(--border-col); }
+        .tab-btn { font-size: 10px; font-weight: 700; padding: 8px 14px; cursor: pointer; border: none; background: transparent; color: var(--muted); transition: color .1s; letter-spacing: 0.5px; text-transform: uppercase; position: relative; }
+        .tab-btn:hover { color: var(--text); }
+        .tab-btn.active { color: var(--brand); }
+        .tab-btn.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: var(--brand); }
         .tab-panel { display: none; }
         .tab-panel.active { display: block; }
 
         /* ── METRIC GRIDS ── */
-        .sg { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 14px; }
+        .sg { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 12px; }
         .sg-5 { grid-template-columns: repeat(5, 1fr); }
-        .sb { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 8px; text-align: center; }
+        .sb { background: var(--card-alt); border: 1px solid var(--border-col); padding: 11px 8px; text-align: center; }
         .sb.al { background: var(--danger-bg); border-color: var(--danger-bd); }
         .sb.wn { background: var(--warn-bg);   border-color: var(--warn-bd); }
         .sb.info { background: var(--info-bg); border-color: var(--info-bd); }
-        .sb.atmos { background: rgba(217,70,239,0.07); border-color: rgba(217,70,239,0.3); }
-        .sb-lbl { font-size: 9px; font-weight: 700; letter-spacing: 1.2px; color: var(--muted); text-transform: uppercase; margin-bottom: 7px; font-family: var(--mono); }
-        .sb-val { font-size: 15px; font-weight: 700; font-family: var(--mono); color: var(--text); }
+        .sb.atmos { background: rgba(61,220,132,0.05); border-color: var(--border-col); }
+        .sb-lbl { font-size: 9px; font-weight: 700; letter-spacing: 1.2px; color: var(--muted); text-transform: uppercase; margin-bottom: 7px; }
+        .sb-val { font-size: 14px; font-weight: 700; color: var(--text); }
         .sb.al .sb-val { color: var(--danger); }
         .sb.wn .sb-val { color: var(--warn); }
         .sb.info .sb-val { color: var(--info); }
-        .sb.atmos .sb-val { color: var(--brand-atmos); }
-        .sb-sub { font-size: 9px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+        .sb.atmos .sb-val { color: var(--brand); }
+        .sb-sub { font-size: 9px; color: var(--muted); margin-top: 2px; }
 
         /* ── CONFIDENCE BADGE ── */
-        .conf-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 9px; font-family: var(--mono); color: var(--muted); background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; margin-left: 4px; }
-        .conf-badge.high { color: var(--success); border-color: var(--success-bd); background: var(--success-bg); }
-        .conf-badge.low { color: var(--warn); border-color: var(--warn-bd); background: var(--warn-bg); }
+        .conf-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 9px; color: var(--muted); background: var(--card-alt); border: 1px solid var(--border-col); padding: 1px 6px; margin-left: 4px; }
+        .conf-badge.high { color: var(--success); border-color: var(--success-bd); }
+        .conf-badge.low { color: var(--warn); border-color: var(--warn-bd); }
 
         /* ── INFO STRIPS ── */
-        .info-strip { background: #f5f8ff; border: 1px solid #dbeafe; border-radius: 10px; padding: 13px 16px; margin-bottom: 13px; }
+        .info-strip { background: var(--card-alt); border: 1px solid var(--border-col); padding: 12px 15px; margin-bottom: 12px; }
         .info-strip-warn { background: var(--warn-bg); border-color: var(--warn-bd); }
         .info-strip-danger { background: var(--danger-bg); border-color: var(--danger-bd); }
-        .strip-title { font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--brand); font-family: var(--mono); margin-bottom: 11px; }
+        .strip-title { font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--brand); margin-bottom: 10px; }
+        .strip-title::before { content: '// '; color: var(--muted); }
         .strip-title-warn { color: var(--warn); }
         .strip-title-danger { color: var(--danger); }
 
         table.fr { width: 100%; border-collapse: collapse; }
-        table.fr th { font-size: 9px; font-weight: 700; letter-spacing: 1.1px; text-transform: uppercase; color: var(--muted); font-family: var(--mono); padding: 0 0 8px 0; text-align: center; border-bottom: 1px solid #dbeafe; }
+        table.fr th { font-size: 9px; font-weight: 700; letter-spacing: 1.1px; text-transform: uppercase; color: var(--muted); padding: 0 0 8px 0; text-align: center; border-bottom: 1px solid var(--border-col); }
         table.fr th:first-child { text-align: left; }
-        table.fr td { font-size: 13px; font-weight: 700; font-family: var(--mono); color: var(--text); padding: 9px 0 0 0; text-align: center; }
-        table.fr td:first-child { font-size: 11px; font-weight: 500; color: var(--muted); text-align: left; }
+        table.fr td { font-size: 12px; font-weight: 700; color: var(--text); padding: 9px 0 0 0; text-align: center; }
+        table.fr td:first-child { font-size: 11px; font-weight: 500; color: var(--text-dim); text-align: left; }
         table.fr td.al { color: var(--danger); }
         table.fr .unit { font-size: 9px; color: var(--muted); font-weight: 400; }
-        .ci-text { font-size: 9px; color: var(--muted); font-family: var(--mono); display: block; margin-top: 2px; }
+        .ci-text { font-size: 9px; color: var(--muted); display: block; margin-top: 2px; }
 
-        .speed-row { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
-        .speed-cell .slbl { font-size: 9px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: var(--brand); font-family: var(--mono); margin-bottom: 4px; }
-        .speed-cell .sval { font-size: 16px; font-weight: 700; font-family: var(--mono); color: var(--text); }
-        .speed-action { flex: 1; text-align: right; font-size: 12px; color: var(--muted); font-style: italic; }
+        .speed-row { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
+        .speed-cell .slbl { font-size: 9px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: var(--brand); margin-bottom: 4px; }
+        .speed-cell .sval { font-size: 15px; font-weight: 700; color: var(--text); }
+        .speed-action { flex: 1; text-align: right; font-size: 11px; color: var(--text-dim); }
 
         /* ── META TABLE ── */
-        .meta-wrap { overflow-x: auto; margin-bottom: 14px; }
+        .meta-wrap { overflow-x: auto; margin-bottom: 12px; }
         table.mt { width: 100%; border-collapse: collapse; }
-        table.mt th { text-align: left; padding: 7px 10px; background: var(--bg); color: var(--muted); font-weight: 700; font-size: 9px; letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid var(--border); font-family: var(--mono); }
-        table.mt td { padding: 8px 10px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 12px; color: #334155; }
-        table.mt tr.mm td { background: var(--warn-bg); color: #92400e; font-weight: 600; }
+        table.mt th { text-align: left; padding: 6px 10px; background: var(--card-alt); color: var(--muted); font-weight: 700; font-size: 9px; letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid var(--border-col); }
+        table.mt td { padding: 7px 10px; border-bottom: 1px solid var(--border-col); font-size: 12px; color: var(--text-dim); }
+        table.mt tr.mm td { background: var(--warn-bg); color: var(--warn); font-weight: 600; }
         table.mt tr:last-child td { border-bottom: none; }
 
         /* ── WAVEFORM ── */
-        .wave-wrap { border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
-        .wave-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; background: var(--bg); border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 8px; }
-        .wave-title { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; font-family: var(--mono); color: var(--muted); }
+        .wave-wrap { border: 1px solid var(--border-col); }
+        .wave-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; background: var(--card-alt); border-bottom: 1px solid var(--border-col); flex-wrap: wrap; gap: 8px; }
+        .wave-title { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); }
         .wave-title strong { color: var(--text); }
-        .wave-tabs { display: flex; gap: 4px; }
-        .wave-tab { font-size: 10px; font-weight: 700; font-family: var(--mono); padding: 3px 10px; border-radius: 5px; cursor: pointer; border: 1px solid var(--border); background: var(--card); color: var(--muted); transition: all .15s; letter-spacing: 0.5px; }
-        .wave-tab.active { background: var(--brand); color: #fff; border-color: var(--brand); }
-        .wave-tab:hover:not(.active) { border-color: var(--brand); color: var(--brand); }
-        .wave-box  { width: 100%; height: 190px; background: #f8fafc; }
-        .wave-foot { display: flex; gap: 16px; align-items: center; padding: 6px 14px; background: #f1f5f9; border-top: 1px solid var(--border); flex-wrap: wrap; }
-        .wl { display: flex; align-items: center; gap: 7px; font-size: 11px; font-family: var(--mono); color: var(--muted); }
-        .wd { width: 20px; height: 2px; border-radius: 1px; }
-        .wave-desc { font-size: 10px; color: var(--muted); font-family: var(--mono); font-style: italic; }
+        .wave-tabs { display: flex; gap: 0; border: 1px solid var(--border-col); }
+        .wave-tab { font-size: 10px; font-weight: 700; padding: 3px 10px; cursor: pointer; border: none; border-right: 1px solid var(--border-col); background: var(--card); color: var(--muted); transition: all .1s; letter-spacing: 0.5px; }
+        .wave-tab:last-child { border-right: none; }
+        .wave-tab.active { background: var(--brand-dim); color: var(--brand); }
+        .wave-tab:hover:not(.active) { color: var(--text); }
+        .wave-box  { width: 100%; height: 180px; background: var(--card-alt); }
+        .wave-foot { display: flex; gap: 16px; align-items: center; padding: 6px 14px; background: var(--card-alt); border-top: 1px solid var(--border-col); flex-wrap: wrap; }
+        .wl { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--text-dim); }
+        .wd { width: 18px; height: 2px; }
+        .wave-desc { font-size: 10px; color: var(--muted); font-style: italic; }
 
         /* ── DNA COMPARISON STRIP ── */
-        .dna-strip { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 13px; }
-        .dna-card { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; }
-        .dna-card .dna-title { font-size: 9px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); font-family: var(--mono); margin-bottom: 6px; }
-        .dna-card .dna-val { font-size: 20px; font-weight: 700; font-family: var(--mono); color: var(--text); }
-        .dna-card .dna-desc { font-size: 10px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
-        .dna-card.primary { border-color: var(--brand); background: var(--brand-dim); }
-        .dna-card.secondary { border-color: var(--brand-sec); background: rgba(124,58,237,0.05); }
+        .dna-strip { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
+        .dna-card { background: var(--card-alt); border: 1px solid var(--border-col); padding: 12px 16px; }
+        .dna-card .dna-title { font-size: 9px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+        .dna-card .dna-val { font-size: 18px; font-weight: 700; color: var(--text); }
+        .dna-card .dna-desc { font-size: 10px; color: var(--text-dim); margin-top: 4px; line-height: 1.4; }
+        .dna-card.primary { border-color: var(--brand-dim); }
+        .dna-card.secondary { border-color: var(--border-col); }
 
         /* ── QC CHECK LIST ── */
-        .qc-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-        .qc-item { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
-        .qc-item.fail { background: var(--danger-bg); border-color: var(--danger-bd); }
-        .qc-item.warn { background: var(--warn-bg); border-color: var(--warn-bd); }
-        .qc-item.pass { background: var(--success-bg); border-color: var(--success-bd); }
-        .qc-item.info { background: var(--info-bg); border-color: var(--info-bd); }
-        .qc-item.skip { background: var(--bg); border-color: var(--border); opacity: 0.65; }
-        .qc-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+        .qc-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+        .qc-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; background: var(--card-alt); border: 1px solid var(--border-col); }
+        .qc-item.fail { border-color: var(--danger-bd); }
+        .qc-item.warn { border-color: var(--warn-bd); }
+        .qc-item.pass { border-color: var(--success-bd); }
+        .qc-item.info { border-color: var(--info-bd); }
+        .qc-item.skip { opacity: 0.55; }
+        .qc-icon { font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 1px; width: 46px; }
+        .qc-item.pass .qc-icon { color: var(--success); }
+        .qc-item.warn .qc-icon { color: var(--warn); }
+        .qc-item.fail .qc-icon { color: var(--danger); }
+        .qc-item.info .qc-icon { color: var(--info); }
+        .qc-item.skip .qc-icon { color: var(--muted); }
         .qc-text { flex: 1; }
         .qc-name { font-size: 11px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
         .qc-desc { font-size: 10px; color: var(--muted); line-height: 1.3; }
-        .qc-value { font-size: 11px; font-weight: 700; font-family: var(--mono); color: var(--text); margin-top: 3px; }
+        .qc-value { font-size: 11px; font-weight: 700; color: var(--text); margin-top: 3px; }
         .qc-value.al { color: var(--danger); }
         .qc-value.wn { color: var(--warn); }
 
         /* ── SPECTRUM VISUALIZER ── */
-        .spectrum-box { width: 100%; height: 160px; background: #f8fafc; border-radius: 8px; }
+        .spectrum-box { width: 100%; height: 150px; background: var(--card-alt); border: 1px solid var(--border-col); }
+
+        /* ── SUMMARY (README-style, inline) ── */
+        .summary-note { font-size: 10px; color: var(--muted); margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-col); line-height: 1.5; }
+        .summary-note code { color: var(--brand); }
 
         @media (max-width: 900px) {
             .sg { grid-template-columns: repeat(3, 1fr); }
@@ -248,18 +268,18 @@
 
     <div class="topbar">
         <div>
-            <div class="logo">🎧 Sync Engine <span class="accent">Pro</span> <span class="ver">v9</span></div>
+            <div class="logo">Sync Engine <span class="accent">Pro</span> <span class="ver">v9</span></div>
             <div class="tagline">Temporal offset · Drift · Speed factor · Onset DNA · Chroma DNA · True Peak · Phase · Advanced QC</div>
         </div>
         <div class="top-actions">
-            <button class="btn-download" id="topDlBtn" onclick="downloadReport()">📊 Download JSON Report</button>
+            <button class="btn-download" id="topDlBtn" onclick="downloadReport()">Download JSON Report</button>
             <button class="btn-ghost" onclick="wipeCache()">Clear Cache</button>
         </div>
     </div>
 
     <div class="mode-tabs">
-        <button class="mode-tab active" id="mode-sync" onclick="setMode('sync')">🎯 Dub Sync + QC</button>
-        <button class="mode-tab" id="mode-standalone" onclick="setMode('standalone')">🔍 Standalone Audio QC</button>
+        <button class="mode-tab active" id="mode-sync" onclick="setMode('sync')">Dub Sync + QC</button>
+        <button class="mode-tab" id="mode-standalone" onclick="setMode('standalone')">Standalone Audio QC</button>
     </div>
 
     <div class="panel">
@@ -313,13 +333,12 @@
     </div>
 
     <div id="loader">
-        <div class="spin"></div>
         <div class="lm" id="loadMsg">Running QC Engine…</div>
         <div class="ls">Analyzing onset DNA, chroma DNA, drift &amp; levels. Large files may take a moment.</div>
     </div>
 
     <div class="err" id="errBanner">
-        <strong>⚠ Analysis Failed</strong>
+        <strong>Analysis Failed</strong>
         <pre id="errDetail"></pre>
     </div>
 
@@ -492,7 +511,7 @@
         const checks = [
             {
                 key: 'atmos_bed_objects',
-                name: '🎧 Atmos Bed & Objects',
+                name: 'Atmos Bed & Objects',
                 desc: 'Verifies fixed bed channels (7.1.2). Object count/position require Dolby Renderer metadata — not measurable via ffprobe.',
                 getStatus: (v) => !v ? 'skip' : (v.verified ? 'pass' : 'skip'),
                 getValue: (v) => !v ? 'Not Atmos-flagged content'
@@ -500,80 +519,80 @@
             },
             {
                 key: 'spatial_loudness',
-                name: '📊 Spatial Loudness',
+                name: 'Spatial Loudness',
                 desc: 'Loudness measured against the target for immersive/spatial mixes',
                 getStatus: (v) => !v ? 'skip' : (v.within_tolerance ? 'pass' : 'warn'),
                 getValue: (v) => v ? `${v.lufs} LUFS (target ${v.target_lufs})` : 'Not measured'
             },
             {
                 key: 'inter_channel_phase',
-                name: '〰️ Inter-Channel Phase',
+                name: 'Inter-Channel Phase',
                 desc: 'Phase correlation between stereo/surround pairs (mono collapse check)',
                 getStatus: (v) => !v ? 'skip' : (v.correlation > 0.4 ? 'pass' : 'fail'),
                 getValue: (v) => v ? `${v.correlation.toFixed(2)}` : 'N/A'
             },
             {
                 key: 'digital_clicks',
-                name: '💥 Level Spike Detection',
+                name: 'Level Spike Detection',
                 desc: 'Statistical outliers in peak level — coarse indicator, not sample-accurate click detection',
                 getStatus: (v) => !v ? 'skip' : (v.count === 0 ? 'pass' : (v.count < 5 ? 'warn' : 'fail')),
                 getValue: (v) => v ? `${v.count} spikes flagged` : 'Not measured'
             },
             {
                 key: 'dropouts',
-                name: '🔇 Dropouts / Silence Gaps',
+                name: 'Dropouts / Silence Gaps',
                 desc: 'Brief signal losses detected via silencedetect',
                 getStatus: (v) => !v ? 'skip' : (v.count === 0 ? 'pass' : (v.count < 3 ? 'warn' : 'fail')),
                 getValue: (v) => v ? `${v.count} detected` : 'Not measured'
             },
             {
                 key: 'hum_buzz',
-                name: '⚡ Hum & Buzz Detection',
+                name: 'Hum & Buzz Detection',
                 desc: '50Hz (PAL) / 60Hz (NTSC) electrical interference — sampled from first 10s',
                 getStatus: (v) => !v ? 'skip' : (!v.detected ? 'pass' : (v.snr_db > 40 ? 'warn' : 'fail')),
                 getValue: (v) => v?.detected ? `${v.frequency}Hz @ ${v.snr_db}dB SNR` : (v ? 'Clean' : 'Not measured')
             },
             {
                 key: 'low_freq_rumble',
-                name: '⬇️ Low-Frequency Rumble',
+                name: 'Low-Frequency Rumble',
                 desc: 'Subsonic noise below 20Hz — sampled from first 10s',
                 getStatus: (v) => !v ? 'skip' : (!v.detected ? 'pass' : (v.level_db > -60 ? 'warn' : 'pass')),
                 getValue: (v) => v?.detected ? `${v.level_db}dB @ ${v.freq_peak}Hz` : (v ? 'Clean' : 'Not measured')
             },
             {
                 key: 'language_id',
-                name: '🗣️ Language Identification',
+                name: 'Language Identification',
                 desc: 'ASR-based detection (faster-whisper). Only runs when "Run ASR" is enabled.',
                 getStatus: (v) => !v || !v.checked ? 'skip' : (v.expected ? (v.match ? 'pass' : 'fail') : 'info'),
                 getValue: (v) => !v || !v.checked ? (v?.reason || 'Not run') : `Detected: ${v.detected} (${(v.confidence*100).toFixed(0)}%)${v.expected ? ` · Expected: ${v.expected}` : ''}`
             },
             {
                 key: 'dme_check',
-                name: '🎭 DME Structural Check',
+                name: 'DME Structural Check',
                 desc: 'Requires an M&E stem upload — heuristic dialogue-leakage detection, verify flagged files by ear',
                 getStatus: (v) => !v || !v.checked ? 'skip' : (v.clean ? 'pass' : 'warn'),
                 getValue: (v) => !v || !v.checked ? (v?.reason || 'No M&E stem provided') : (v.clean ? 'Clean' : `Possible leakage: ${v.dialogue_leakage_db}dB`)
             },
             {
                 key: 'profanity',
-                name: '🤐 Profanity / Censorship',
+                name: 'Profanity / Censorship',
                 desc: 'Text-match against ASR transcript — misses bleeped/censored audio by design',
                 getStatus: (v) => !v || !v.scanned ? 'skip' : (v.flagged === 0 ? 'pass' : 'fail'),
                 getValue: (v) => !v || !v.scanned ? (v?.reason || 'Not run') : `${v.flagged} flagged`
             },
             {
                 key: 'audio_description',
-                name: '🔊 Audio Description (AD)',
+                name: 'Audio Description (AD)',
                 desc: 'Detected via container tags/disposition — untagged AD tracks won\'t be found',
                 getStatus: (v) => !v ? 'skip' : (v.present ? 'pass' : 'info'),
                 getValue: (v) => v ? (v.present ? `Present (${v.streams.length} track${v.streams.length > 1 ? 's' : ''})` : 'No AD track detected') : 'Not measured'
             },
             {
                 key: 'mono_in_stereo',
-                name: '👥 Mono in Stereo Wrapper',
+                name: 'Mono in Stereo Wrapper',
                 desc: 'Detects dual-mono (identical L/R) — sampled from first 5s',
                 getStatus: (v) => !v?.checked ? 'skip' : (v.is_dual_mono ? 'fail' : 'pass'),
-                getValue: (v) => v?.checked ? (v.is_dual_mono ? 'DUAL MONO ⚠' : 'True stereo') : 'Not measured'
+                getValue: (v) => v?.checked ? (v.is_dual_mono ? 'DUAL MONO' : 'True stereo') : 'Not measured'
             }
         ];
 
@@ -581,7 +600,7 @@
             const value = qc[check.key];
             const status = check.getStatus(value);
             const valStr = check.getValue(value);
-            const icon = { pass: '✅', warn: '⚠️', fail: '❌', info: 'ℹ️', skip: '⏭️' }[status];
+            const icon = { pass: 'PASS', warn: 'WARN', fail: 'FAIL', info: 'INFO', skip: 'SKIP' }[status];
 
             return `
                 <div class="qc-item ${status}">
@@ -644,9 +663,9 @@
 
             <!-- TAB BAR -->
             <div class="tab-bar">
-                <button class="tab-btn active" onclick="switchTab(${i}, 'sync')" id="tab-sync-${i}">🎯 Sync Analysis</button>
-                <button class="tab-btn" onclick="switchTab(${i}, 'qc')" id="tab-qc-${i}">🔍 Advanced QC</button>
-                <button class="tab-btn" onclick="switchTab(${i}, 'spectrum')" id="tab-spectrum-${i}">📊 Spectrum</button>
+                <button class="tab-btn active" onclick="switchTab(${i}, 'sync')" id="tab-sync-${i}">Sync Analysis</button>
+                <button class="tab-btn" onclick="switchTab(${i}, 'qc')" id="tab-qc-${i}">Advanced QC</button>
+                <button class="tab-btn" onclick="switchTab(${i}, 'spectrum')" id="tab-spectrum-${i}">Spectrum</button>
             </div>
 
             <!-- SYNC TAB -->
@@ -662,7 +681,7 @@
                         <div class="sb-val">${r.total_drift_ms}ms</div>
                     </div>
                     <div class="sb ${dnaAl ? 'al' : ''}">
-                        <div class="sb-lbl">Onset DNA${r.vocal_filter ? ' <span style="color:var(--brand);font-size:8px">▲ HPSS</span>' : ''}</div>
+                        <div class="sb-lbl">Onset DNA${r.vocal_filter ? ' <span style="color:var(--brand);font-size:8px">(HPSS)</span>' : ''}</div>
                         <div class="sb-val">${r.dna_match}% ${renderConfidence(dnaCI, '%')}</div>
                         <div class="sb-sub">${dnaCI ? `CI: [${dnaCI[0]}, ${dnaCI[1]}]` : ''}</div>
                     </div>
@@ -683,19 +702,19 @@
 
                 <div class="dna-strip">
                     <div class="dna-card primary">
-                        <div class="dna-title">🎯 Onset DNA Match</div>
+                        <div class="dna-title">Onset DNA Match</div>
                         <div class="dna-val">${r.dna_match}%</div>
                         <div class="dna-desc">Temporal alignment via onset strength cross-correlation. Best for percussive/transient-rich content.</div>
                     </div>
                     <div class="dna-card secondary">
-                        <div class="dna-title">🎵 Chroma DNA Match</div>
+                        <div class="dna-title">Chroma DNA Match</div>
                         <div class="dna-val">${r.chroma_dna ?? 'N/A'}%</div>
                         <div class="dna-desc">Spectral alignment via chromagram cross-correlation. Better for music/dialogue hybrid content.</div>
                     </div>
                 </div>
 
                 <div class="info-strip">
-                    <div class="strip-title">⏱ Timing in Frames</div>
+                    <div class="strip-title">Timing in Frames</div>
                     <table class="fr">
                         <thead>
                             <tr>
@@ -723,7 +742,7 @@
                 </div>
 
                 <div class="info-strip">
-                    <div class="strip-title">⚙ Clock Speed Analysis</div>
+                    <div class="strip-title">Clock Speed Analysis</div>
                     <div class="speed-row">
                         <div class="speed-cell">
                             <div class="slbl">Clock Ratio</div>
@@ -744,7 +763,7 @@
                             <tr><td>Sample Rate</td><td>${x(r.ref_meta?.sr)}</td><td>${x(r.comp_meta?.sr)}</td></tr>
                             <tr><td>Duration</td><td>${x(r.ref_meta?.duration)}</td><td>${x(r.comp_meta?.duration)}</td></tr>
                             <tr class="${r.chan_mismatch ? 'mm' : ''}">
-                                <td>Channels${r.chan_mismatch ? ' ⚠' : ''}</td>
+                                <td>Channels${r.chan_mismatch ? ' [MISMATCH]' : ''}</td>
                                 <td>${x(r.ref_meta?.channel_label)}</td>
                                 <td>${x(r.comp_meta?.channel_label)}</td>
                             </tr>
@@ -776,8 +795,8 @@
                     </div>
                     <div class="wave-box" id="wv-${i}"></div>
                     <div class="wave-foot">
-                        <div class="wl"><div class="wd" style="background:#3b82f6"></div>Master (above axis)</div>
-                        <div class="wl"><div class="wd" style="background:#f59e0b"></div>Dub (below axis)</div>
+                        <div class="wl"><div class="wd" style="background:#3ddc84"></div>Master (above axis)</div>
+                        <div class="wl"><div class="wd" style="background:#e0b341"></div>Dub (below axis)</div>
                         <div class="wave-desc" id="wv-desc-${i}">
                             Smoothed energy envelope — comparable across languages, shows structural sync
                         </div>
@@ -788,7 +807,7 @@
             <!-- ADVANCED QC TAB -->
             <div class="tab-panel" id="panel-qc-${i}">
                 <div class="info-strip">
-                    <div class="strip-title">🔍 Advanced Quality Control Checks</div>
+                    <div class="strip-title">Advanced Quality Control Checks</div>
                     <div class="qc-list" id="qc-list-${i}">
                         ${renderQCChecks(qc)}
                     </div>
@@ -798,11 +817,11 @@
             <!-- SPECTRUM TAB -->
             <div class="tab-panel" id="panel-spectrum-${i}">
                 <div class="info-strip">
-                    <div class="strip-title">📊 Frequency Spectrum Analysis</div>
+                    <div class="strip-title">Frequency Spectrum Analysis</div>
                     <div class="spectrum-box" id="spectrum-${i}"></div>
                     <div class="wave-foot" style="margin-top:8px;">
-                        <div class="wl"><div class="wd" style="background:#3b82f6"></div>Master spectrum</div>
-                        <div class="wl"><div class="wd" style="background:#f59e0b"></div>Dub spectrum</div>
+                        <div class="wl"><div class="wd" style="background:#3ddc84"></div>Master spectrum</div>
+                        <div class="wl"><div class="wd" style="background:#e0b341"></div>Dub spectrum</div>
                         <div class="wave-desc">Log-frequency magnitude comparison — reveals EQ and spectral balance differences</div>
                     </div>
                 </div>
@@ -857,8 +876,8 @@
             </div>
 
             <div class="tab-bar">
-                <button class="tab-btn active" onclick="switchTab('${domId}', 'levels')" id="tab-levels-${domId}">📏 Levels &amp; QC</button>
-                <button class="tab-btn" onclick="switchTab('${domId}', 'spectrum')" id="tab-spectrum-${domId}">📊 Spectrum</button>
+                <button class="tab-btn active" onclick="switchTab('${domId}', 'levels')" id="tab-levels-${domId}">Levels &amp; QC</button>
+                <button class="tab-btn" onclick="switchTab('${domId}', 'spectrum')" id="tab-spectrum-${domId}">Spectrum</button>
             </div>
 
             <div class="tab-panel active" id="panel-levels-${domId}">
@@ -897,7 +916,7 @@
                 </div>
 
                 <div class="info-strip">
-                    <div class="strip-title">🔍 Advanced Quality Control Checks</div>
+                    <div class="strip-title">Advanced Quality Control Checks</div>
                     <div class="qc-list">${renderQCChecks(qc)}</div>
                 </div>
 
@@ -911,7 +930,7 @@
 
             <div class="tab-panel" id="panel-spectrum-${domId}">
                 <div class="info-strip">
-                    <div class="strip-title">📊 Frequency Spectrum</div>
+                    <div class="strip-title">Frequency Spectrum</div>
                     <div class="spectrum-box" id="spectrum-${domId}"></div>
                 </div>
             </div>
@@ -928,29 +947,27 @@
         const chart = echarts.init(el, null, { renderer: 'canvas' });
         _charts[domId] = chart;
         chart.setOption({
-            backgroundColor: '#f8fafc',
+            backgroundColor: '#0d1215',
             animation: false,
             grid: { top: 14, bottom: 14, left: 46, right: 16 },
-            xAxis: { type: 'category', boundaryGap: false, axisLine: { lineStyle: { color: '#e2e8f0' } }, axisTick: { show: false }, axisLabel: { show: false }, splitLine: { show: false } },
+            xAxis: { type: 'category', boundaryGap: false, axisLine: { lineStyle: { color: '#263238' } }, axisTick: { show: false }, axisLabel: { show: false }, splitLine: { show: false } },
             yAxis: {
                 type: 'value', min: 0, max: 1.1, interval: 0.5,
                 axisLine: { show: false }, axisTick: { show: false },
-                axisLabel: { color: '#94a3b8', fontSize: 9, fontFamily: 'IBM Plex Mono' },
-                splitLine: { show: true, lineStyle: { color: '#e8edf4', type: 'dashed', width: 1 } }
+                axisLabel: { color: '#5a6b70', fontSize: 9, fontFamily: 'IBM Plex Mono' },
+                splitLine: { show: true, lineStyle: { color: '#1a2226', type: 'dashed', width: 1 } }
             },
             series: [{
                 type: 'line', data: wave, symbol: 'none',
-                lineStyle: { color: '#3b82f6', width: 1.2, opacity: 0.95 },
+                lineStyle: { color: '#3ddc84', width: 1.2, opacity: 0.95 },
                 areaStyle: {
-                    color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
-                        { offset: 0, color: 'rgba(59,130,246,0.35)' }, { offset: 1, color: 'rgba(59,130,246,0.03)' }
-                    ]}
+                    color: 'rgba(61,220,132,0.10)'
                 },
                 large: true, largeThreshold: 500
             }],
             tooltip: {
-                trigger: 'axis', backgroundColor: '#1e293b', borderColor: '#334155', padding: [8, 12],
-                textStyle: { color: '#cbd5e1', fontSize: 11, fontFamily: 'IBM Plex Mono' },
+                trigger: 'axis', backgroundColor: '#05070a', borderColor: '#263238', padding: [8, 12],
+                textStyle: { color: '#7c8b90', fontSize: 11, fontFamily: 'IBM Plex Mono' },
                 formatter: params => `RMS: ${(params[0]?.value ?? 0).toFixed(3)}`
             }
         });
@@ -963,32 +980,30 @@
         _spectrumCharts[domId] = chart;
         const freqs = spec.map((_, idx) => Math.round(20 + (idx / spec.length) * (20000 - 20)));
         chart.setOption({
-            backgroundColor: '#f8fafc',
+            backgroundColor: '#0d1215',
             animation: false,
             grid: { top: 14, bottom: 30, left: 50, right: 16 },
             xAxis: {
-                type: 'category', data: freqs, axisLine: { lineStyle: { color: '#e2e8f0' } }, axisTick: { show: false },
-                axisLabel: { color: '#94a3b8', fontSize: 9, fontFamily: 'IBM Plex Mono', interval: Math.floor(freqs.length / 6),
+                type: 'category', data: freqs, axisLine: { lineStyle: { color: '#263238' } }, axisTick: { show: false },
+                axisLabel: { color: '#5a6b70', fontSize: 9, fontFamily: 'IBM Plex Mono', interval: Math.floor(freqs.length / 6),
                     formatter: v => v >= 1000 ? (v/1000).toFixed(1) + 'k' : v },
                 splitLine: { show: false }
             },
             yAxis: {
                 type: 'value', min: -100, max: 0, axisLine: { show: false }, axisTick: { show: false },
-                axisLabel: { color: '#94a3b8', fontSize: 9, fontFamily: 'IBM Plex Mono', formatter: v => v + 'dB' },
-                splitLine: { show: true, lineStyle: { color: '#e8edf4', type: 'dashed', width: 1 } }
+                axisLabel: { color: '#5a6b70', fontSize: 9, fontFamily: 'IBM Plex Mono', formatter: v => v + 'dB' },
+                splitLine: { show: true, lineStyle: { color: '#1a2226', type: 'dashed', width: 1 } }
             },
             series: [{
                 type: 'line', data: spec, symbol: 'none', smooth: true,
-                lineStyle: { color: '#3b82f6', width: 1.5, opacity: 0.9 },
+                lineStyle: { color: '#3ddc84', width: 1.5, opacity: 0.9 },
                 areaStyle: {
-                    color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
-                        { offset: 0, color: 'rgba(59,130,246,0.25)' }, { offset: 1, color: 'rgba(59,130,246,0.02)' }
-                    ]}
+                    color: 'rgba(61,220,132,0.08)'
                 }
             }],
             tooltip: {
-                trigger: 'axis', backgroundColor: '#1e293b', borderColor: '#334155', padding: [8, 12],
-                textStyle: { color: '#cbd5e1', fontSize: 11, fontFamily: 'IBM Plex Mono' },
+                trigger: 'axis', backgroundColor: '#05070a', borderColor: '#263238', padding: [8, 12],
+                textStyle: { color: '#7c8b90', fontSize: 11, fontFamily: 'IBM Plex Mono' },
                 formatter: params => `${params[0]?.axisValue}Hz: ${(params[0]?.value ?? 0).toFixed(1)}dB`
             }
         });
@@ -1049,13 +1064,13 @@
         chart._waveMode = mode === 'rms' ? 'RMS energy' : 'Raw amplitude';
 
         chart.setOption({
-            backgroundColor: '#f8fafc',
+            backgroundColor: '#0d1215',
             animation: false,
             grid: { top: 14, bottom: 14, left: 46, right: 16 },
             xAxis: {
                 type: 'category',
                 boundaryGap: false,
-                axisLine: { lineStyle: { color: '#e2e8f0' } },
+                axisLine: { lineStyle: { color: '#263238' } },
                 axisTick: { show: false },
                 axisLabel: { show: false },
                 splitLine: { show: false }
@@ -1066,58 +1081,42 @@
                 axisLine: { show: false },
                 axisTick: { show: false },
                 axisLabel: {
-                    color: '#94a3b8', fontSize: 9, fontFamily: 'IBM Plex Mono',
+                    color: '#5a6b70', fontSize: 9, fontFamily: 'IBM Plex Mono',
                     formatter: v => v === 0 ? '0' : v.toFixed(1)
                 },
-                splitLine: { show: true, lineStyle: { color: '#e8edf4', type: 'dashed', width: 1 } }
+                splitLine: { show: true, lineStyle: { color: '#1a2226', type: 'dashed', width: 1 } }
             },
             series: [
                 {
                     name: '_zero', type: 'line',
                     data: new Array(Math.min(waveM.length, waveD.length)).fill(0),
                     symbol: 'none',
-                    lineStyle: { color: '#cbd5e1', width: 1.5, type: 'solid' },
+                    lineStyle: { color: '#7c8b90', width: 1.5, type: 'solid' },
                     z: 1, silent: true, legendHoverLink: false
                 },
                 {
                     name: 'Master', type: 'line', data: waveM,
                     symbol: 'none',
-                    lineStyle: { color: '#3b82f6', width: 1.2, opacity: 0.95 },
-                    areaStyle: {
-                        origin: 0,
-                        color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                            colorStops: [
-                                { offset: 0, color: 'rgba(59,130,246,0.35)' },
-                                { offset: 1, color: 'rgba(59,130,246,0.03)' }
-                            ]
-                        }
-                    },
+                    lineStyle: { color: '#3ddc84', width: 1.2, opacity: 0.95 },
+                    areaStyle: { origin: 0, color: 'rgba(61,220,132,0.10)' },
                     large: true, largeThreshold: 500, z: 2
                 },
                 {
                     name: 'Dub', type: 'line', data: waveD,
                     symbol: 'none',
-                    lineStyle: { color: '#f59e0b', width: 1.2, opacity: 0.95 },
-                    areaStyle: {
-                        origin: 0,
-                        color: { type: 'linear', x: 0, y: 1, x2: 0, y2: 0,
-                            colorStops: [
-                                { offset: 0, color: 'rgba(245,158,11,0.35)' },
-                                { offset: 1, color: 'rgba(245,158,11,0.03)' }
-                            ]
-                        }
-                    },
+                    lineStyle: { color: '#e0b341', width: 1.2, opacity: 0.95 },
+                    areaStyle: { origin: 0, color: 'rgba(224,179,65,0.10)' },
                     large: true, largeThreshold: 500, z: 2
                 }
             ],
             legend: { show: false },
             tooltip: {
                 trigger: 'axis',
-                backgroundColor: '#1e293b',
-                borderColor: '#334155',
+                backgroundColor: '#05070a',
+                borderColor: '#263238',
                 padding: [8, 12],
-                textStyle: { color: '#cbd5e1', fontSize: 11, fontFamily: 'IBM Plex Mono' },
-                axisPointer: { lineStyle: { color: '#475569', width: 1 } },
+                textStyle: { color: '#7c8b90', fontSize: 11, fontFamily: 'IBM Plex Mono' },
+                axisPointer: { lineStyle: { color: '#3a4247', width: 1 } },
                 formatter: params => {
                     const mS = params.find(p => p.seriesName === 'Master');
                     const dS = params.find(p => p.seriesName === 'Dub');
@@ -1127,14 +1126,14 @@
                     return `
                         <div style="font-weight:600;color:#fff;margin-bottom:4px;">Sample Index: ${mS?.dataIndex ?? ''}</div>
                         <div style="display:flex;justify-content:space-between;gap:16px;">
-                            <span><span style="color:#3b82f6">●</span> Master ${lbl}:</span>
+                            <span><span style="color:#3ddc84">●</span> Master ${lbl}:</span>
                             <span style="font-weight:600;margin-left:auto">${m.toFixed(3)}</span>
                         </div>
                         <div style="display:flex;justify-content:space-between;gap:16px;margin-top:2px;">
-                            <span><span style="color:#f59e0b">●</span> Dub ${lbl}:</span>
+                            <span><span style="color:#e0b341">●</span> Dub ${lbl}:</span>
                             <span style="font-weight:600;margin-left:auto">${d.toFixed(3)}</span>
                         </div>
-                        <div style="border-top:1px solid #334155;margin-top:6px;padding-top:4px;font-size:10px;color:#94a3b8">
+                        <div style="border-top:1px solid #263238;margin-top:6px;padding-top:4px;font-size:10px;color:#5a6b70">
                             Δ Variance: ${Math.abs(m - d).toFixed(3)}
                         </div>
                     `;
@@ -1156,16 +1155,16 @@
         });
 
         chart.setOption({
-            backgroundColor: '#f8fafc',
+            backgroundColor: '#0d1215',
             animation: false,
             grid: { top: 14, bottom: 30, left: 50, right: 16 },
             xAxis: {
                 type: 'category',
                 data: freqs,
-                axisLine: { lineStyle: { color: '#e2e8f0' } },
+                axisLine: { lineStyle: { color: '#263238' } },
                 axisTick: { show: false },
                 axisLabel: {
-                    color: '#94a3b8', fontSize: 9, fontFamily: 'IBM Plex Mono',
+                    color: '#5a6b70', fontSize: 9, fontFamily: 'IBM Plex Mono',
                     interval: Math.floor(freqs.length / 6),
                     formatter: v => {
                         if (v >= 1000) return (v/1000).toFixed(1) + 'k';
@@ -1180,48 +1179,34 @@
                 axisLine: { show: false },
                 axisTick: { show: false },
                 axisLabel: {
-                    color: '#94a3b8', fontSize: 9, fontFamily: 'IBM Plex Mono',
+                    color: '#5a6b70', fontSize: 9, fontFamily: 'IBM Plex Mono',
                     formatter: v => v + 'dB'
                 },
-                splitLine: { show: true, lineStyle: { color: '#e8edf4', type: 'dashed', width: 1 } }
+                splitLine: { show: true, lineStyle: { color: '#1a2226', type: 'dashed', width: 1 } }
             },
             series: [
                 {
                     name: 'Master', type: 'line', data: specM,
                     symbol: 'none',
-                    lineStyle: { color: '#3b82f6', width: 1.5, opacity: 0.9 },
-                    areaStyle: {
-                        color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                            colorStops: [
-                                { offset: 0, color: 'rgba(59,130,246,0.25)' },
-                                { offset: 1, color: 'rgba(59,130,246,0.02)' }
-                            ]
-                        }
-                    },
+                    lineStyle: { color: '#3ddc84', width: 1.5, opacity: 0.9 },
+                    areaStyle: { color: 'rgba(61,220,132,0.08)' },
                     smooth: true
                 },
                 {
                     name: 'Dub', type: 'line', data: specD,
                     symbol: 'none',
-                    lineStyle: { color: '#f59e0b', width: 1.5, opacity: 0.9 },
-                    areaStyle: {
-                        color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                            colorStops: [
-                                { offset: 0, color: 'rgba(245,158,11,0.25)' },
-                                { offset: 1, color: 'rgba(245,158,11,0.02)' }
-                            ]
-                        }
-                    },
+                    lineStyle: { color: '#e0b341', width: 1.5, opacity: 0.9 },
+                    areaStyle: { color: 'rgba(224,179,65,0.08)' },
                     smooth: true
                 }
             ],
             legend: { show: false },
             tooltip: {
                 trigger: 'axis',
-                backgroundColor: '#1e293b',
-                borderColor: '#334155',
+                backgroundColor: '#05070a',
+                borderColor: '#263238',
                 padding: [8, 12],
-                textStyle: { color: '#cbd5e1', fontSize: 11, fontFamily: 'IBM Plex Mono' },
+                textStyle: { color: '#7c8b90', fontSize: 11, fontFamily: 'IBM Plex Mono' },
                 formatter: params => {
                     const mS = params.find(p => p.seriesName === 'Master');
                     const dS = params.find(p => p.seriesName === 'Dub');
@@ -1229,11 +1214,11 @@
                     return `
                         <div style="font-weight:600;color:#fff;margin-bottom:4px;">${freq}Hz</div>
                         <div style="display:flex;justify-content:space-between;gap:16px;">
-                            <span><span style="color:#3b82f6">●</span> Master:</span>
+                            <span><span style="color:#3ddc84">●</span> Master:</span>
                             <span style="font-weight:600">${mS?.value?.toFixed(1)}dB</span>
                         </div>
                         <div style="display:flex;justify-content:space-between;gap:16px;margin-top:2px;">
-                            <span><span style="color:#f59e0b">●</span> Dub:</span>
+                            <span><span style="color:#e0b341">●</span> Dub:</span>
                             <span style="font-weight:600">${dS?.value?.toFixed(1)}dB</span>
                         </div>
                     `;
