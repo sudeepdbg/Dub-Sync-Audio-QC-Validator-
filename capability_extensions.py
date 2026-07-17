@@ -28,6 +28,7 @@ from __future__ import annotations
 import re
 import logging
 import subprocess
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -69,6 +70,11 @@ class TranscriptionEngine:
         self._device = device
         self._compute_type = compute_type
         self._model = None  # loaded on first use
+        # A single WhisperModel instance is shared across all request threads.
+        # Serialize access to it — concurrent .transcribe() calls into the same
+        # CTranslate2 model from multiple threads is not something to rely on
+        # being safe, and it was untested under your ThreadPoolExecutor(MAX_WORKERS).
+        self._lock = threading.Lock()
 
     def _ensure_loaded(self):
         if self._model is not None:
@@ -98,19 +104,20 @@ class TranscriptionEngine:
             return {"error": str(e), "available": False}
 
         try:
-            segments, info = self._model.transcribe(
-                str(path),
-                language=None,           # auto-detect
-                vad_filter=True,         # skip silence, keeps this fast
-                condition_on_previous_text=False,
-            )
-            text_parts: List[str] = []
-            total_sec = 0.0
-            for seg in segments:
-                text_parts.append(seg.text)
-                total_sec = seg.end
-                if total_sec >= duration_sec:
-                    break
+            with self._lock:
+                segments, info = self._model.transcribe(
+                    str(path),
+                    language=None,           # auto-detect
+                    vad_filter=True,         # skip silence, keeps this fast
+                    condition_on_previous_text=False,
+                )
+                text_parts: List[str] = []
+                total_sec = 0.0
+                for seg in segments:
+                    text_parts.append(seg.text)
+                    total_sec = seg.end
+                    if total_sec >= duration_sec:
+                        break
 
             transcript = " ".join(t.strip() for t in text_parts).strip()
             return {
