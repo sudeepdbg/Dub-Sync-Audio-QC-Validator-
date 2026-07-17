@@ -1,4 +1,4 @@
-# Sync Engine Pro — Dub Sync & Audio QC Validator (v9)
+#Dub Sync & Audio QC Validator (v9)
 
 Broadcast/OTT localization QC tool. Two modes:
 
