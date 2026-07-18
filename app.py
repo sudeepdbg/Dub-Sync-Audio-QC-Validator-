@@ -38,8 +38,9 @@ from flask_limiter.util import get_remote_address
 
 from capability_extensions import (
     check_language_id, check_profanity, check_dme_structural,
-    check_audio_description, get_spatial_loudness, get_full_file_loudness,
+    check_audio_description, get_full_file_loudness,
     get_transcription_result, transcription_engine,
+    ATMOS_SPATIAL_LUFS_TARGET,
 )
 
 # -- LOGGING SETUP --
@@ -806,6 +807,7 @@ def process_audio_single_pass(path, target_sr=PERFORMANCE_SR, seg_dur=SEGMENT_DU
         "peak_val": sample_peak_db,
         "true_peak": true_peak_str,
         "true_peak_val": true_peak_val,
+        "lra": loudness_result.get("lra"),
         "loudness_source": loudness_result.get("source", "unknown"),
     }
 
@@ -1112,9 +1114,50 @@ def run_advanced_qc(f_path, comp_meta, phase, levels, y_dialogue_ref,
         qc_checks["mono_in_stereo"] = mono_result
 
         # Spatial loudness
-        spatial = get_spatial_loudness(FFMPEG_PATH, f_path)
-        if spatial:
-            qc_checks["spatial_loudness"] = spatial
+        # BUG FIX (target mismatch): this check previously called
+        # get_spatial_loudness() with no target, which silently defaulted to
+        # ATMOS_SPATIAL_LUFS_TARGET (-27.0 LUFS) for every file -- including
+        # plain stereo dubs correctly mixed to the standard -23.0 LUFS
+        # broadcast target. That mismatch was failing nearly every stereo
+        # file. The -27 LUFS target only applies to actual immersive beds
+        # (Dolby Atmos / DTS:X); everything else is judged against the same
+        # LUFS_TARGET used everywhere else in this file.
+        #
+        # DEDUPE (perf): get_spatial_loudness() ran the exact same ffmpeg
+        # ebur128 command that get_full_file_loudness() already ran a few
+        # lines earlier to produce `levels`. Rather than paying for a second
+        # full-file ffmpeg pass on every QC run, we now build this check
+        # directly from the already-measured `levels` values.
+        is_immersive = bool(ff_meta.get("has_atmos") or ff_meta.get("has_dtsx"))
+        spatial_target = ATMOS_SPATIAL_LUFS_TARGET if is_immersive else LUFS_TARGET
+
+        spatial_lufs = levels.get("lufs_val")
+        if levels.get("loudness_source") == "ffmpeg_ebur128_full" and spatial_lufs is not None:
+            within_tolerance = abs(spatial_lufs - spatial_target) <= LUFS_TOLERANCE
+            qc_checks["spatial_loudness"] = {
+                "checked": True,
+                "status": "PASS" if within_tolerance else "FAIL",
+                "lufs": round(spatial_lufs, 2),
+                "true_peak": (
+                    round(levels["true_peak_val"], 2)
+                    if levels.get("true_peak_val") is not None else None
+                ),
+                "lra": round(levels["lra"], 2) if levels.get("lra") is not None else None,
+                "target_lufs": spatial_target,
+                "within_tolerance": within_tolerance,
+                "source": "ffmpeg_ebur128_full (reused from level measurement)",
+                "reason": (
+                    f"Integrated loudness {spatial_lufs:.2f} LUFS outside target "
+                    f"{spatial_target} plus/minus {LUFS_TOLERANCE} LU"
+                    if not within_tolerance else None
+                ),
+            }
+        else:
+            qc_checks["spatial_loudness"] = {
+                "checked": False,
+                "status": "ERROR",
+                "reason": "Full-file loudness measurement unavailable.",
+            }
 
         if comp_meta.get("channels", 1) >= 2:
             phase_corr = 0.0
