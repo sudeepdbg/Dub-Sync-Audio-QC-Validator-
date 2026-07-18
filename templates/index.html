@@ -677,7 +677,7 @@ function renderQCChecks(qc) {
             {
                 key: 'audio_description',
                 name: 'Audio Description (AD)',
-                desc: 'Detected via container tags/disposition -- untagged AD tracks won't be found',
+                desc: 'Detected via container tags/disposition -- untagged AD tracks won\'t be found',
                 getStatus: (v) => !v ? 'skip' : (v.present ? 'pass' : 'info'),
                 getValue: (v) => v ? (v.present ? `Present (${v.streams.length} track${v.streams.length > 1 ? 's' : ''})` : 'No AD track detected') : 'Not measured'
             },
