@@ -300,7 +300,7 @@
         </div>
         <div class="tog" id="vocalDnaField">
             <input type="checkbox" id="vocalDna" checked>
-            <label for="vocalDna" title="HPSS percussive separation + 300–3400Hz bandpass. Isolates speech transients for more accurate onset DNA scoring.">Vocal DNA Filter</label>
+            <label for="vocalDna" title="HPSS percussive separation + 300-3400Hz bandpass. Isolates speech transients for more accurate onset DNA scoring.">Vocal DNA Filter</label>
         </div>
         <button class="btn-primary" id="runBtn" onclick="runQC()">Run QC Engine</button>
     </div>
@@ -315,22 +315,22 @@
         </div>
         <div class="field grow">
             <span class="field-lbl">Expected Language (optional, ISO-639-1)</span>
-            <input type="text" id="expectedLang" placeholder="e.g. es, fr, hi — leave blank to just detect" maxlength="8">
+            <input type="text" id="expectedLang" placeholder="e.g. es, fr, hi -- leave blank to just detect" maxlength="8">
         </div>
         <div class="tog">
             <input type="checkbox" id="runAsr">
-            <label for="runAsr" title="Runs speech-to-text (faster-whisper) for language ID and a profanity scan. Adds several seconds per file — off by default.">Run ASR (Language ID + Profanity)</label>
+            <label for="runAsr" title="Runs speech-to-text (faster-whisper) for language ID and a profanity scan. Adds several seconds per file -- off by default.">Run ASR (Language ID + Profanity)</label>
         </div>
     </div>
 
     <div class="sum-bar" id="sumBar">
-        <div class="ss"><div class="v" id="sumTotal">—</div><div class="l">Processed</div></div>
+        <div class="ss"><div class="v" id="sumTotal">--</div><div class="l">Processed</div></div>
         <div class="sd"></div>
-        <div class="ss ok"><div class="v" id="sumPass">—</div><div class="l">Passed</div></div>
+        <div class="ss ok"><div class="v" id="sumPass">--</div><div class="l">Passed</div></div>
         <div class="sd"></div>
-        <div class="ss warn"><div class="v" id="sumWarn">—</div><div class="l">Warnings</div></div>
+        <div class="ss warn"><div class="v" id="sumWarn">--</div><div class="l">Warnings</div></div>
         <div class="sd"></div>
-        <div class="ss bad"><div class="v" id="sumFail">—</div><div class="l">Failed / Error</div></div>
+        <div class="ss bad"><div class="v" id="sumFail">--</div><div class="l">Failed / Error</div></div>
     </div>
 
     <div id="loader">
@@ -362,7 +362,7 @@
         document.getElementById('compFieldLbl').textContent = mode === 'sync' ? 'Dub Files' : 'Audio Files to QC';
         document.getElementById('compName').textContent = mode === 'sync' ? 'Choose dub files…' : 'Choose audio files…';
 
-        // Clear any previous results — the two modes render different card shapes
+        // Clear any previous results -- the two modes render different card shapes
         document.getElementById('results').innerHTML = '';
         document.getElementById('sumBar').classList.remove('on');
         document.getElementById('topDlBtn').classList.remove('on');
@@ -442,7 +442,7 @@
         document.getElementById('results').innerHTML = '';
         document.getElementById('sumBar').classList.remove('on');
         setLoading(true, runAsr
-            ? `Analyzing ${comps.length} file${comps.length > 1 ? 's' : ''} (ASR enabled — this takes longer)…`
+            ? `Analyzing ${comps.length} file${comps.length > 1 ? 's' : ''} (ASR enabled -- this takes longer)…`
             : `Analyzing ${comps.length} file${comps.length > 1 ? 's' : ''}…`);
 
         try {
@@ -513,7 +513,7 @@ function renderQCChecks(qc) {
             {
                 key: 'atmos_bed_objects',
                 name: 'Atmos Bed & Objects',
-                desc: 'Verifies fixed bed channels (7.1.2). Object count/position require Dolby Renderer metadata — not measurable via ffprobe.',
+                desc: 'Verifies fixed bed channels (7.1.2). Object count/position require Dolby Renderer metadata -- not measurable via ffprobe.',
                 getStatus: (v) => !v ? 'skip' : (v.verified ? 'pass' : 'skip'),
                 getValue: (v) => !v ? 'Not Atmos-flagged content'
                     : `${v.bed_count ?? '?'} bed ch. · objects: ${v.object_count === null ? 'not measurable' : v.object_count}`
@@ -543,7 +543,7 @@ function renderQCChecks(qc) {
             {
                 key: 'dialnorm_metadata',
                 name: 'Dialnorm Metadata',
-                desc: 'Embedded dialnorm value from bitstream. Not compared against measured loudness — requires dialogue-gated measurement.',
+                desc: 'Embedded dialnorm value from bitstream. Not compared against measured loudness -- requires dialogue-gated measurement.',
                 getStatus: (v) => !v || !v.checked ? 'skip' : 'info',
                 getValue: (v) => {
                     if (!v || !v.checked) return 'Not present in stream';
@@ -568,7 +568,7 @@ function renderQCChecks(qc) {
             {
                 key: 'audio_level_statistics',
                 name: 'Audio Level Statistics',
-                desc: 'Block-level peak outlier detection — NOT sample-accurate click/pop detection. Real clicks are single/few-sample events.',
+                desc: 'Block-level peak outlier detection -- NOT sample-accurate click/pop detection. Real clicks are single/few-sample events.',
                 getStatus: (v) => {
                     if (!v || !v.checked) return 'skip';
                     if (v.status === 'ERROR') return 'fail';
@@ -645,7 +645,7 @@ function renderQCChecks(qc) {
             {
                 key: 'dme_check',
                 name: 'DME Structural Check',
-                desc: 'EXPERIMENTAL: Requires isolated dialogue stem for reliable detection. Heuristic only — verify flagged files by ear.',
+                desc: 'EXPERIMENTAL: Requires isolated dialogue stem for reliable detection. Heuristic only -- verify flagged files by ear.',
                 getStatus: (v) => {
                     if (!v || !v.checked) return 'skip';
                     if (v.status === 'ERROR') return 'fail';
@@ -662,7 +662,7 @@ function renderQCChecks(qc) {
             {
                 key: 'profanity',
                 name: 'Profanity / Censorship',
-                desc: 'Text-match against ASR transcript — misses bleeped/censored audio by design',
+                desc: 'Text-match against ASR transcript -- misses bleeped/censored audio by design',
                 getStatus: (v) => {
                     if (!v || !v.scanned) return 'skip';
                     if (v.status === 'ERROR') return 'fail';
@@ -677,14 +677,14 @@ function renderQCChecks(qc) {
             {
                 key: 'audio_description',
                 name: 'Audio Description (AD)',
-                desc: 'Detected via container tags/disposition — untagged AD tracks won't be found',
+                desc: 'Detected via container tags/disposition -- untagged AD tracks won't be found',
                 getStatus: (v) => !v ? 'skip' : (v.present ? 'pass' : 'info'),
                 getValue: (v) => v ? (v.present ? `Present (${v.streams.length} track${v.streams.length > 1 ? 's' : ''})` : 'No AD track detected') : 'Not measured'
             },
             {
                 key: 'mono_in_stereo',
                 name: 'Mono in Stereo Wrapper',
-                desc: 'Detects dual-mono (identical L/R) — sampled from first 5s',
+                desc: 'Detects dual-mono (identical L/R) -- sampled from first 5s',
                 getStatus: (v) => {
                     if (!v || !v.checked) return 'skip';
                     if (v.status === 'ERROR') return 'fail';
@@ -750,7 +750,7 @@ function renderQCChecks(qc) {
 
         const fv = (val, threshold) => {
             const n = Math.abs(parseFloat(val) || 0);
-            return `<span class="${n > threshold ? 'al' : ''}">${val ?? '—'}</span>`;
+            return `<span class="${n > threshold ? 'al' : ''}">${val ?? '--'}</span>`;
         };
 
         div.className = 'rc';
@@ -789,7 +789,7 @@ function renderQCChecks(qc) {
                     </div>
                     <div class="sb ${chromaAl ? 'wn' : ''}">
                         <div class="sb-lbl">Chroma DNA</div>
-                        <div class="sb-val">${r.chroma_dna ?? '—'}%</div>
+                        <div class="sb-val">${r.chroma_dna ?? '--'}%</div>
                         <div class="sb-sub">Spectral similarity</div>
                     </div>
                     <div class="sb">
@@ -870,13 +870,13 @@ function renderQCChecks(qc) {
                                 <td>${x(r.comp_meta?.channel_label)}</td>
                             </tr>
                             <tr><td>Bit Depth / Format</td><td>${x(r.ref_meta?.bit_depth)}</td><td>${x(r.comp_meta?.bit_depth)}</td></tr>
-                            <tr><td>Integrated Loudness <span style="font-size:9px;color:var(--muted);display:block">ebur128 full-file</span></td><td>—</td><td>${x(lv.lufs)}</td></tr>
-                            <tr><td>Sample Peak</td><td>—</td><td>${x(lv.peak)}</td></tr>
+                            <tr><td>Integrated Loudness <span style="font-size:9px;color:var(--muted);display:block">ebur128 full-file</span></td><td>--</td><td>${x(lv.lufs)}</td></tr>
+                            <tr><td>Sample Peak</td><td>--</td><td>${x(lv.peak)}</td></tr>
                             <tr>
                                 <td>True Peak (dBTP)
                                     <span style="font-size:9px;color:var(--muted);font-family:var(--mono);display:block">ebur128 / EBU R128 / ITU-R BS.1770</span>
                                 </td>
-                                <td>—</td>
+                                <td>--</td>
                                 <td>${x(lv.true_peak)}</td>
                             </tr>
                         </tbody>
@@ -900,7 +900,7 @@ function renderQCChecks(qc) {
                         <div class="wl"><div class="wd" style="background:#3ddc84"></div>Master (above axis)</div>
                         <div class="wl"><div class="wd" style="background:#e0b341"></div>Dub (below axis)</div>
                         <div class="wave-desc" id="wv-desc-${i}">
-                            Smoothed energy envelope — comparable across languages, shows structural sync
+                            Smoothed energy envelope -- comparable across languages, shows structural sync
                         </div>
                     </div>
                 </div>
@@ -918,7 +918,7 @@ function renderQCChecks(qc) {
                     <div class="strip-title" style="color:var(--warn)">Experimental Checks</div>
                     <div style="font-size:11px;color:var(--text-dim);line-height:1.6;">
                         <strong>Hum/Buzz</strong> and <strong>Rumble</strong> checks sample only the first 10 seconds and use heuristic energy ratios (not noise-floor SNR). 
-                        <strong>DME Leakage</strong> requires an isolated dialogue stem for reliable detection — correlation with the full mix is inherently ambiguous. 
+                        <strong>DME Leakage</strong> requires an isolated dialogue stem for reliable detection -- correlation with the full mix is inherently ambiguous. 
                         These checks are <span style="color:var(--warn)">indicators only</span> and should not gate delivery without manual verification.
                     </div>
                 </div>
@@ -934,7 +934,7 @@ function renderQCChecks(qc) {
                     <div class="wave-foot" style="margin-top:8px;">
                         <div class="wl"><div class="wd" style="background:#3ddc84"></div>Master spectrum</div>
                         <div class="wl"><div class="wd" style="background:#e0b341"></div>Dub spectrum</div>
-                        <div class="wave-desc">Log-frequency magnitude comparison — reveals EQ and spectral balance differences</div>
+                        <div class="wave-desc">Log-frequency magnitude comparison -- reveals EQ and spectral balance differences</div>
                     </div>
                 </div>
             </div>
@@ -1149,8 +1149,8 @@ function renderQCChecks(qc) {
         const d = el._data[mode];
         if (desc) {
             desc.textContent = mode === 'rms'
-                ? 'Smoothed energy envelope — comparable across languages, shows structural sync'
-                : 'Raw audio samples (abs-normalised) — acoustic detail, compare transient shapes';
+                ? 'Smoothed energy envelope -- comparable across languages, shows structural sync'
+                : 'Raw audio samples (abs-normalised) -- acoustic detail, compare transient shapes';
         }
 
         const label = mode === 'rms' ? 'RMS energy' : 'Raw amplitude';
