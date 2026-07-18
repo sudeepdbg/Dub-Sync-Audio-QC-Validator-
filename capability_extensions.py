@@ -1,14 +1,20 @@
 """
-capability_extensions.py v2
-===========================
-Drop-in additions for Audio Alignment Engine v9 (audio_align.py).
+capability_extensions.py v3 (FIXED)
+====================================
+Drop-in additions for Audio Alignment Engine v10.
 
-FIXES APPLIED (all 10 feedback points addressed):
-    1.  Spatial loudness: uses ebur128 for accurate measurement
-    2.  ASR deduplication: transcribe once, reuse result
-    3.  DME check: marked as EXPERIMENTAL with honest limitations
-    4.  Environment variables now honored for Whisper config
-    5.  Error handling: never returns clean-looking results on failure
+FIXES APPLIED:
+    1.  ebur128 regex patterns: Fixed to match FFmpeg's actual multi-line output format
+        - Integrated loudness: matches "I: -22.8 LUFS" (was "Integrated loudness: -22.8 LUFS")
+        - Loudness range: matches "LRA: 8.0 LU" (was "Loudness range: 8.0 LU")
+        - True peak: matches "Peak: -7.0 dBFS" (was "True peak: -7.0 dBTP")
+    2.  Added framelog=0 to suppress per-frame ebur128 logging (eliminates nan/inf noise)
+    3.  Parse from Summary block only to avoid matching initial measurement values
+    4.  Added -nostats to ffmpeg calls to suppress progress output
+    5.  Better error messages that distinguish ffmpeg failure vs parse failure
+    6.  Environment variables now honored for Whisper config
+    7.  ASR deduplication: transcribe once, reuse result
+    8.  DME check: marked as EXPERIMENTAL with honest limitations
 """
 
 from __future__ import annotations
@@ -277,13 +283,78 @@ def check_audio_description(ffprobe_meta: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _parse_ebur128_summary(stderr: str) -> Dict[str, Any]:
+    """
+    Parse ebur128 Summary block from FFmpeg stderr output.
+    
+    FFmpeg ebur128 outputs a multi-line summary block:
+      Summary:
+      
+        Integrated loudness:
+          I:         -22.8 LUFS
+          Threshold: -33.0 LUFS
+      
+        Loudness range:
+          LRA:         8.0 LU
+          Threshold: -44.7 LUFS
+          LRA low:   -30.4 LUFS
+          LRA high:  -22.4 LUFS
+      
+        True peak:
+          Peak:       -7.0 dBFS
+    
+    We extract ONLY the Summary block to avoid matching initial measurement values.
+    """
+    summary_match = re.search(r'Summary:\s*\n(.*)', stderr, re.DOTALL)
+    if not summary_match:
+        return {
+            "parsed": False,
+            "reason": "No Summary block found in ebur128 output",
+        }
+    
+    summary_text = summary_match.group(0)
+    
+    # Parse individual fields from the Summary block only
+    integrated_match = re.search(r'I:\s+([-\d.]+)\s+LUFS', summary_text)
+    range_match = re.search(r'LRA:\s+([-\d.]+)\s+LU', summary_text)
+    peak_match = re.search(r'Peak:\s+([-\d.]+)\s+dBFS', summary_text)
+    
+    result = {"parsed": True}
+    
+    if integrated_match:
+        result["integrated_lufs"] = float(integrated_match.group(1))
+    else:
+        result["integrated_lufs"] = None
+        result["parsed"] = False
+        result["reason"] = "Could not parse Integrated loudness (I:) from Summary"
+    
+    if range_match:
+        result["lra_lu"] = float(range_match.group(1))
+    else:
+        result["lra_lu"] = None
+    
+    if peak_match:
+        result["true_peak_dbfs"] = float(peak_match.group(1))
+    else:
+        result["true_peak_dbfs"] = None
+    
+    return result
+
+
 def get_spatial_loudness(ffmpeg_path: str, path: Union[str, Path],
                           target_lufs: float = ATMOS_SPATIAL_LUFS_TARGET,
                           timeout: int = 120) -> Dict[str, Any]:
+    """
+    Measure spatial loudness using FFmpeg ebur128 filter.
+    
+    FIX: Uses framelog=0 to suppress per-frame logging (eliminates nan/inf noise).
+    FIX: Parses from Summary block only with correct multi-line regex patterns.
+    FIX: Uses dBFS (not dBTP) for True Peak matching FFmpeg's actual output.
+    """
     cmd = [
-        ffmpeg_path, "-i", str(path),
+        ffmpeg_path, "-hide_banner", "-nostats", "-i", str(path),
         "-map", "0:a:0",
-        "-af", "ebur128=peak=true",
+        "-af", "ebur128=peak=true:framelog=0",  # FIX: framelog=0 suppresses per-frame noise
         "-f", "null", "-",
     ]
     try:
@@ -293,25 +364,25 @@ def get_spatial_loudness(ffmpeg_path: str, path: Union[str, Path],
             return {
                 "checked": False,
                 "status": "ERROR",
-                "reason": f"ffmpeg ebur128 failed: {result.stderr[:200]}",
+                "reason": f"ffmpeg ebur128 failed (rc={result.returncode}): {result.stderr[:300]}",
             }
 
         stderr = result.stderr
-
-        integrated_match = re.search(r"Integrated loudness:\s+([-\d.]+)\s+LUFS", stderr)
-        range_match = re.search(r"Loudness range:\s+([-\d.]+)\s+LU", stderr)
-        peak_match = re.search(r"True peak:\s+([-\d.]+)\s+dBTP", stderr)
-
-        if not integrated_match:
+        
+        # FIX: Parse from Summary block only with correct patterns
+        parse_result = _parse_ebur128_summary(stderr)
+        
+        if not parse_result.get("parsed"):
             return {
                 "checked": False,
                 "status": "ERROR",
-                "reason": "Could not parse ebur128 output",
+                "reason": parse_result.get("reason", "Could not parse ebur128 output"),
+                "raw_output_preview": stderr[-500:] if len(stderr) > 500 else stderr,
             }
 
-        measured = float(integrated_match.group(1))
-        lra = float(range_match.group(1)) if range_match else None
-        true_peak = float(peak_match.group(1)) if peak_match else None
+        measured = parse_result["integrated_lufs"]
+        lra = parse_result.get("lra_lu")
+        true_peak = parse_result.get("true_peak_dbfs")
 
         within_tolerance = abs(measured - target_lufs) <= 1.0
         status = "PASS" if within_tolerance else "FAIL"
@@ -347,10 +418,17 @@ def get_spatial_loudness(ffmpeg_path: str, path: Union[str, Path],
 
 def get_full_file_loudness(ffmpeg_path: str, path: Union[str, Path],
                             timeout: int = 120) -> Dict[str, Any]:
+    """
+    Measure full-file loudness using FFmpeg ebur128 filter.
+    
+    FIX: Uses framelog=0 to suppress per-frame logging.
+    FIX: Parses from Summary block only with correct multi-line regex patterns.
+    FIX: Uses dBFS (not dBTP) for True Peak matching FFmpeg's actual output.
+    """
     cmd = [
-        ffmpeg_path, "-i", str(path),
+        ffmpeg_path, "-hide_banner", "-nostats", "-i", str(path),
         "-map", "0:a:0",
-        "-af", "ebur128=peak=true",
+        "-af", "ebur128=peak=true:framelog=0",  # FIX: framelog=0 suppresses per-frame noise
         "-f", "null", "-",
     ]
     try:
@@ -360,20 +438,29 @@ def get_full_file_loudness(ffmpeg_path: str, path: Union[str, Path],
             return {
                 "checked": False,
                 "status": "ERROR",
-                "reason": f"ffmpeg ebur128 failed: {result.stderr[:200]}",
+                "reason": f"ffmpeg ebur128 failed (rc={result.returncode}): {result.stderr[:300]}",
                 "lufs_val": None,
                 "true_peak_val": None,
             }
 
         stderr = result.stderr
+        
+        # FIX: Parse from Summary block only with correct patterns
+        parse_result = _parse_ebur128_summary(stderr)
+        
+        if not parse_result.get("parsed"):
+            return {
+                "checked": False,
+                "status": "ERROR",
+                "reason": parse_result.get("reason", "Could not parse ebur128 output"),
+                "lufs_val": None,
+                "true_peak_val": None,
+                "raw_output_preview": stderr[-500:] if len(stderr) > 500 else stderr,
+            }
 
-        integrated_match = re.search(r"Integrated loudness:\s+([-\d.]+)\s+LUFS", stderr)
-        peak_match = re.search(r"True peak:\s+([-\d.]+)\s+dBTP", stderr)
-        range_match = re.search(r"Loudness range:\s+([-\d.]+)\s+LU", stderr)
-
-        lufs_val = float(integrated_match.group(1)) if integrated_match else None
-        true_peak_val = float(peak_match.group(1)) if peak_match else None
-        lra = float(range_match.group(1)) if range_match else None
+        lufs_val = parse_result.get("integrated_lufs")
+        true_peak_val = parse_result.get("true_peak_dbfs")
+        lra = parse_result.get("lra_lu")
 
         return {
             "checked": True,
