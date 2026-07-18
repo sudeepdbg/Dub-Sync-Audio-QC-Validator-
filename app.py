@@ -963,10 +963,21 @@ def determine_status(offset_ms, drift_ms, dna_score, lufs_val=None, true_peak_va
     """
     FIX Point 7: Now accepts qc_checks and considers ALL findings.
     Status is the WORST across all checks (never-false-pass rule).
-    """
-    issues = []
 
-    # Sync metrics
+    BUG FIX: WARN-level findings (e.g. mid-file silence, dual-mono stereo)
+    were previously appended to the same `issues` list as hard FAIL/ERROR
+    findings, so a single WARN was enough to flip an otherwise-healthy file
+    to an overall FAIL. Severity is now properly ordered:
+        FAIL/ERROR  -> forces overall FAIL
+        WARN        -> forces overall WARN, but only if nothing FAILED
+        PASS        -> no effect
+    A WARN can never be more severe than a FAIL, and a clean file with only
+    warnings is no longer indistinguishable from a file with real failures.
+    """
+    issues = []    # hard failures -- always force FAIL
+    warnings = []  # soft findings -- force WARN only if there are no issues
+
+    # Sync/level metrics are hard gating criteria -- always issues, not warnings
     if abs(offset_ms) > OFFSET_THRESHOLD_MS:
         issues.append(f"Start offset {offset_ms}ms exceeds +/-{OFFSET_THRESHOLD_MS}ms threshold")
     if abs(drift_ms) > DRIFT_THRESHOLD_MS:
@@ -980,7 +991,7 @@ def determine_status(offset_ms, drift_ms, dna_score, lufs_val=None, true_peak_va
     if lufs_val is not None and abs(lufs_val - LUFS_TARGET) > LUFS_TOLERANCE:
         issues.append(f"Integrated loudness {round(lufs_val, 2)} LUFS outside {LUFS_TARGET}+/-{LUFS_TOLERANCE} LU target")
 
-    # FIX Point 7: Consider QC check findings
+    # FIX Point 7: Consider QC check findings, but keep WARN separate from FAIL/ERROR
     if qc_checks:
         for check_name, check_result in qc_checks.items():
             if check_name == "error":
@@ -993,10 +1004,14 @@ def determine_status(offset_ms, drift_ms, dna_score, lufs_val=None, true_peak_va
                 issues.append(f"[{check_name}] {reason}")
             elif check_status == "WARN":
                 reason = check_result.get("reason", f"{check_name} warning")
-                issues.append(f"[{check_name}] {reason}")
+                warnings.append(f"[{check_name}] {reason}")
 
     if issues:
-        return "FAIL", "; ".join(issues)
+        # Include warnings too so the reason string stays complete, but the
+        # overall status is driven by the presence of real failures.
+        return "FAIL", "; ".join(issues + warnings)
+    if warnings:
+        return "WARN", "; ".join(warnings)
     return "PASS", "All metrics within thresholds"
 
 
@@ -1004,6 +1019,10 @@ def determine_standalone_status(levels, qc_checks, duration_sec):
     """
     FIX Point 6 & 7: Considers ALL qc_checks, not just a subset.
     Returns the WORST status across all checks.
+
+    BUG FIX: same WARN-vs-FAIL conflation as determine_status() -- WARN
+    findings are now tracked separately and only downgrade the result to
+    WARN, never to FAIL, unless a genuine FAIL/ERROR is also present.
     """
     if duration_sec < MIN_RELIABLE_DURATION_SEC:
         return "WARN", (
@@ -1011,7 +1030,8 @@ def determine_standalone_status(levels, qc_checks, duration_sec):
             f"recommended; got {round(duration_sec, 2)}s). Metrics shown are indicative only."
         )
 
-    issues = []
+    issues = []    # hard failures -- always force FAIL
+    warnings = []  # soft findings -- force WARN only if there are no issues
     true_peak_val = levels.get("true_peak_val")
     lufs_val = levels.get("lufs_val")
 
@@ -1020,7 +1040,7 @@ def determine_standalone_status(levels, qc_checks, duration_sec):
     if lufs_val is not None and abs(lufs_val - LUFS_TARGET) > LUFS_TOLERANCE:
         issues.append(f"Integrated loudness {round(lufs_val, 2)} LUFS outside {LUFS_TARGET}+/-{LUFS_TOLERANCE} LU target")
 
-    # FIX Point 6 & 7: Check ALL qc_checks
+    # FIX Point 6 & 7: Check ALL qc_checks, but keep WARN separate from FAIL/ERROR
     if qc_checks:
         for check_name, check_result in qc_checks.items():
             if check_name == "error":
@@ -1034,10 +1054,12 @@ def determine_standalone_status(levels, qc_checks, duration_sec):
                 issues.append(f"[{check_name}] {reason}")
             elif check_status == "WARN":
                 reason = check_result.get("reason", f"{check_name} warning")
-                issues.append(f"[{check_name}] {reason}")
+                warnings.append(f"[{check_name}] {reason}")
 
     if issues:
-        return "FAIL", "; ".join(issues)
+        return "FAIL", "; ".join(issues + warnings)
+    if warnings:
+        return "WARN", "; ".join(warnings)
     return "PASS", "All standalone QC metrics within thresholds"
 
 # -- SHARED ADVANCED-QC PIPELINE (FIXED Point 6) --
