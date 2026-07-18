@@ -262,14 +262,15 @@
         }
     </style>
 <base target="_blank">
+<base target="_blank">
 </head>
 <body>
 <div class="page">
 
     <div class="topbar">
         <div>
-            <div class="logo">Sync Engine <span class="accent">Pro</span> <span class="ver">v9</span></div>
-            <div class="tagline">Temporal offset · Drift · Speed factor · Onset DNA · Chroma DNA · True Peak · Phase · Advanced QC</div>
+            <div class="logo">Sync Engine <span class="accent">Pro</span> <span class="ver">v10</span></div>
+            <div class="tagline">Temporal offset · Drift · Speed factor · Onset DNA · Chroma DNA · True Peak · Phase · Advanced QC · ebur128 Loudness</div>
         </div>
         <div class="top-actions">
             <button class="btn-download" id="topDlBtn" onclick="downloadReport()">Download JSON Report</button>
@@ -491,21 +492,21 @@
     }
 
     // ── CONFIDENCE HELPERS ──
-    function renderConfidence(ci, unit) {
-        if (!ci || !Array.isArray(ci) || ci.length < 2) return '';
-        const [low, high] = ci;
-        const range = Math.abs(high - low);
-        const isHigh = range < (unit === 'ms' ? 20 : 5);
-        const cls = isHigh ? 'high' : 'low';
-        const label = isHigh ? 'High' : 'Low';
-        return `<span class="conf-badge ${cls}" title="${label} confidence: ${low} to ${high} ${unit}">±${label}</span>`;
+    function renderConfidence(range, unit) {
+        if (!range || !Array.isArray(range) || range.length < 2) return '';
+        const [low, high] = range;
+        const span = Math.abs(high - low);
+        // These are NOT statistical confidence intervals.
+        // offset_resolution_range = +/- one analysis hop (analysis resolution)
+        // window_score_dispersion = Tukey outlier fences (score dispersion)
+        const isTight = span < (unit === 'ms' ? 30 : 8);
+        const cls = isTight ? 'high' : 'low';
+        const label = isTight ? 'Tight' : 'Wide';
+        return `<span class="conf-badge ${cls}" title="${label} range: ${low} to ${high} ${unit}">±${label}</span>`;
     }
 
     // ── QC CHECK RENDERER ──
-    // Every check explicitly distinguishes "not run / not applicable" (skip)
-    // from an actual measured pass/warn/fail. A missing value NEVER renders
-    // as a red failure badge.
-    function renderQCChecks(qc) {
+function renderQCChecks(qc) {
         if (!qc) return '<div style="color:var(--muted);font-size:12px;padding:20px;text-align:center;">Advanced QC checks not available for this file format.</div>';
 
         const checks = [
@@ -518,72 +519,165 @@
                     : `${v.bed_count ?? '?'} bed ch. · objects: ${v.object_count === null ? 'not measurable' : v.object_count}`
             },
             {
+                key: 'dtsx_detected',
+                name: 'DTS:X Detection',
+                desc: 'DTS:X immersive audio format detected (separate from Dolby Atmos)',
+                getStatus: (v) => !v ? 'skip' : 'info',
+                getValue: (v) => v ? 'DTS:X present' : 'Not detected'
+            },
+            {
                 key: 'spatial_loudness',
                 name: 'Spatial Loudness',
-                desc: 'Loudness measured against the target for immersive/spatial mixes',
-                getStatus: (v) => !v ? 'skip' : (v.within_tolerance ? 'pass' : 'warn'),
-                getValue: (v) => v ? `${v.lufs} LUFS (target ${v.target_lufs})` : 'Not measured'
+                desc: 'Measured via ffmpeg ebur128 against target for immersive/spatial mixes',
+                getStatus: (v) => {
+                    if (!v || !v.checked) return 'skip';
+                    if (v.status === 'ERROR') return 'fail';
+                    return v.status === 'PASS' ? 'pass' : 'warn';
+                },
+                getValue: (v) => {
+                    if (!v || !v.checked) return 'Not measured';
+                    if (v.status === 'ERROR') return v.reason || 'Measurement failed';
+                    return `${v.lufs} LUFS (target ${v.target_lufs})`;
+                }
+            },
+            {
+                key: 'dialnorm_metadata',
+                name: 'Dialnorm Metadata',
+                desc: 'Embedded dialnorm value from bitstream. Not compared against measured loudness — requires dialogue-gated measurement.',
+                getStatus: (v) => !v || !v.checked ? 'skip' : 'info',
+                getValue: (v) => {
+                    if (!v || !v.checked) return 'Not present in stream';
+                    return `Embedded: ${v.embedded} dB · Codec: ${v.codec || 'unknown'}`;
+                }
             },
             {
                 key: 'inter_channel_phase',
                 name: 'Inter-Channel Phase',
                 desc: 'Phase correlation between stereo/surround pairs (mono collapse check)',
-                getStatus: (v) => !v ? 'skip' : (v.correlation > 0.4 ? 'pass' : 'fail'),
-                getValue: (v) => v ? `${v.correlation.toFixed(2)}` : 'N/A'
+                getStatus: (v) => {
+                    if (!v || !v.checked) return 'skip';
+                    if (v.status === 'ERROR') return 'fail';
+                    return v.status === 'PASS' ? 'pass' : 'warn';
+                },
+                getValue: (v) => {
+                    if (!v || !v.checked) return 'N/A';
+                    if (v.status === 'ERROR') return v.reason || 'Measurement failed';
+                    return `${v.correlation.toFixed(2)}`;
+                }
             },
             {
-                key: 'digital_clicks',
-                name: 'Level Spike Detection',
-                desc: 'Statistical outliers in peak level — coarse indicator, not sample-accurate click detection',
-                getStatus: (v) => !v ? 'skip' : (v.count === 0 ? 'pass' : (v.count < 5 ? 'warn' : 'fail')),
-                getValue: (v) => v ? `${v.count} spikes flagged` : 'Not measured'
+                key: 'audio_level_statistics',
+                name: 'Audio Level Statistics',
+                desc: 'Block-level peak outlier detection — NOT sample-accurate click/pop detection. Real clicks are single/few-sample events.',
+                getStatus: (v) => {
+                    if (!v || !v.checked) return 'skip';
+                    if (v.status === 'ERROR') return 'fail';
+                    return v.status === 'PASS' ? 'pass' : (v.status === 'WARN' ? 'warn' : 'fail');
+                },
+                getValue: (v) => {
+                    if (!v || !v.checked) return 'Not measured';
+                    if (v.status === 'ERROR') return v.reason || 'Measurement failed';
+                    return `${v.count} spikes flagged`;
+                }
             },
             {
-                key: 'dropouts',
-                name: 'Dropouts / Silence Gaps',
-                desc: 'Brief signal losses detected via silencedetect',
-                getStatus: (v) => !v ? 'skip' : (v.count === 0 ? 'pass' : (v.count < 3 ? 'warn' : 'fail')),
-                getValue: (v) => v ? `${v.count} detected` : 'Not measured'
+                key: 'audio_silence',
+                name: 'Audio Silence',
+                desc: 'Silence intervals detected via ffmpeg silencedetect. May be intentional (pause, transition, censorship). Classified as head/mid/tail.',
+                getStatus: (v) => {
+                    if (!v || !v.checked) return 'skip';
+                    if (v.status === 'ERROR') return 'fail';
+                    return v.status === 'PASS' ? 'pass' : (v.status === 'WARN' ? 'warn' : 'fail');
+                },
+                getValue: (v) => {
+                    if (!v || !v.checked) return 'Not measured';
+                    if (v.status === 'ERROR') return v.reason || 'Detection failed';
+                    const mid = (v.gaps || []).filter(g => g.position === 'mid').length;
+                    return `${v.count} intervals (${mid} mid-file)`;
+                }
             },
             {
                 key: 'hum_buzz',
                 name: 'Hum & Buzz Detection',
-                desc: '50Hz (PAL) / 60Hz (NTSC) electrical interference — sampled from first 10s',
-                getStatus: (v) => !v ? 'skip' : (!v.detected ? 'pass' : (v.snr_db > 40 ? 'warn' : 'fail')),
-                getValue: (v) => v?.detected ? `${v.frequency}Hz @ ${v.snr_db}dB SNR` : (v ? 'Clean' : 'Not measured')
+                desc: 'EXPERIMENTAL: 50Hz/60Hz energy ratio indicator (10s sample). NOT a noise-floor SNR. Strong bass notes will trigger this. Do not gate delivery.',
+                getStatus: (v) => {
+                    if (!v || !v.checked) return 'skip';
+                    if (v.status === 'ERROR') return 'fail';
+                    return v.status === 'PASS' ? 'pass' : (v.status === 'WARN' ? 'warn' : 'fail');
+                },
+                getValue: (v) => {
+                    if (!v || !v.checked) return 'Not measured';
+                    if (v.status === 'ERROR') return v.reason || 'Detection failed';
+                    return v.detected ? `${v.frequency}Hz · ratio ${v.energy_ratio}` : 'Clean';
+                }
             },
             {
                 key: 'low_freq_rumble',
                 name: 'Low-Frequency Rumble',
-                desc: 'Subsonic noise below 20Hz — sampled from first 10s',
-                getStatus: (v) => !v ? 'skip' : (!v.detected ? 'pass' : (v.level_db > -60 ? 'warn' : 'pass')),
-                getValue: (v) => v?.detected ? `${v.level_db}dB @ ${v.freq_peak}Hz` : (v ? 'Clean' : 'Not measured')
+                desc: 'EXPERIMENTAL: Subsonic indicator below 20Hz (10s sample). Band-pass energy ratio method. Do not gate delivery.',
+                getStatus: (v) => {
+                    if (!v || !v.checked) return 'skip';
+                    if (v.status === 'ERROR') return 'fail';
+                    return v.status === 'PASS' ? 'pass' : (v.status === 'WARN' ? 'warn' : 'fail');
+                },
+                getValue: (v) => {
+                    if (!v || !v.checked) return 'Not measured';
+                    if (v.status === 'ERROR') return v.reason || 'Detection failed';
+                    return v.detected ? `${v.level_db}dB @ ${v.freq_peak}Hz` : 'Clean';
+                }
             },
             {
                 key: 'language_id',
                 name: 'Language Identification',
                 desc: 'ASR-based detection (faster-whisper). Only runs when "Run ASR" is enabled.',
-                getStatus: (v) => !v || !v.checked ? 'skip' : (v.expected ? (v.match ? 'pass' : 'fail') : 'info'),
-                getValue: (v) => !v || !v.checked ? (v?.reason || 'Not run') : `Detected: ${v.detected} (${(v.confidence*100).toFixed(0)}%)${v.expected ? ` · Expected: ${v.expected}` : ''}`
+                getStatus: (v) => {
+                    if (!v || !v.checked) return 'skip';
+                    if (v.status === 'ERROR') return 'fail';
+                    if (v.status === 'SKIP') return 'skip';
+                    return v.expected ? (v.match ? 'pass' : 'fail') : 'info';
+                },
+                getValue: (v) => {
+                    if (!v || !v.checked) return v?.reason || 'Not run';
+                    if (v.status === 'ERROR') return v.reason || 'Detection failed';
+                    return `Detected: ${v.detected} (${(v.confidence*100).toFixed(0)}%)${v.expected ? ` · Expected: ${v.expected}` : ''}`;
+                }
             },
             {
                 key: 'dme_check',
                 name: 'DME Structural Check',
-                desc: 'Requires an M&E stem upload — heuristic dialogue-leakage detection, verify flagged files by ear',
-                getStatus: (v) => !v || !v.checked ? 'skip' : (v.clean ? 'pass' : 'warn'),
-                getValue: (v) => !v || !v.checked ? (v?.reason || 'No M&E stem provided') : (v.clean ? 'Clean' : `Possible leakage: ${v.dialogue_leakage_db}dB`)
+                desc: 'EXPERIMENTAL: Requires isolated dialogue stem for reliable detection. Heuristic only — verify flagged files by ear.',
+                getStatus: (v) => {
+                    if (!v || !v.checked) return 'skip';
+                    if (v.status === 'ERROR') return 'fail';
+                    if (v.status === 'SKIP') return 'skip';
+                    return v.status === 'PASS' ? 'pass' : 'warn';
+                },
+                getValue: (v) => {
+                    if (!v || !v.checked) return v?.reason || 'No M&E stem provided';
+                    if (v.status === 'ERROR') return v.reason || 'Check failed';
+                    if (v.status === 'SKIP') return v.reason || 'Not run';
+                    return v.clean ? 'Clean' : `Possible leakage: ${v.dialogue_leakage_db}dB`;
+                }
             },
             {
                 key: 'profanity',
                 name: 'Profanity / Censorship',
                 desc: 'Text-match against ASR transcript — misses bleeped/censored audio by design',
-                getStatus: (v) => !v || !v.scanned ? 'skip' : (v.flagged === 0 ? 'pass' : 'fail'),
-                getValue: (v) => !v || !v.scanned ? (v?.reason || 'Not run') : `${v.flagged} flagged`
+                getStatus: (v) => {
+                    if (!v || !v.scanned) return 'skip';
+                    if (v.status === 'ERROR') return 'fail';
+                    return v.status === 'PASS' ? 'pass' : 'fail';
+                },
+                getValue: (v) => {
+                    if (!v || !v.scanned) return v?.reason || 'Not run';
+                    if (v.status === 'ERROR') return v.reason || 'Scan failed';
+                    return `${v.flagged} flagged`;
+                }
             },
             {
                 key: 'audio_description',
                 name: 'Audio Description (AD)',
-                desc: 'Detected via container tags/disposition — untagged AD tracks won\'t be found',
+                desc: 'Detected via container tags/disposition — untagged AD tracks won't be found',
                 getStatus: (v) => !v ? 'skip' : (v.present ? 'pass' : 'info'),
                 getValue: (v) => v ? (v.present ? `Present (${v.streams.length} track${v.streams.length > 1 ? 's' : ''})` : 'No AD track detected') : 'Not measured'
             },
@@ -591,8 +685,16 @@
                 key: 'mono_in_stereo',
                 name: 'Mono in Stereo Wrapper',
                 desc: 'Detects dual-mono (identical L/R) — sampled from first 5s',
-                getStatus: (v) => !v?.checked ? 'skip' : (v.is_dual_mono ? 'fail' : 'pass'),
-                getValue: (v) => v?.checked ? (v.is_dual_mono ? 'DUAL MONO' : 'True stereo') : 'Not measured'
+                getStatus: (v) => {
+                    if (!v || !v.checked) return 'skip';
+                    if (v.status === 'ERROR') return 'fail';
+                    return v.is_dual_mono ? 'fail' : 'pass';
+                },
+                getValue: (v) => {
+                    if (!v || !v.checked) return 'Not measured';
+                    if (v.status === 'ERROR') return v.reason || 'Check failed';
+                    return v.is_dual_mono ? 'DUAL MONO' : 'True stereo';
+                }
             }
         ];
 
@@ -639,8 +741,8 @@
         const lv      = r.levels        || {};
         const of      = r.offset_frames || {};
         const df      = r.drift_frames  || {};
-        const offCI   = r.offset_confidence || null;
-        const dnaCI   = r.dna_confidence || null;
+        const offRange = r.offset_resolution_range || null;
+        const dnaDispersion = r.window_score_dispersion || null;
         const qc      = r.qc_checks || null;
 
         const sfDelta = parseFloat(sf.delta) || 0;
@@ -673,8 +775,8 @@
                 <div class="sg">
                     <div class="sb ${offAl ? 'al' : ''}">
                         <div class="sb-lbl">Start Offset</div>
-                        <div class="sb-val">${r.offset_ms}ms ${renderConfidence(offCI, 'ms')}</div>
-                        <div class="sb-sub">${offCI ? `CI: [${offCI[0]}, ${offCI[1]}]` : ''}</div>
+                        <div class="sb-val">${r.offset_ms}ms ${renderConfidence(offRange, 'ms')}</div>
+                        <div class="sb-sub">${offRange ? `Range: [${offRange[0]}, ${offRange[1]}]` : ''}</div>
                     </div>
                     <div class="sb ${driftAl ? 'al' : ''}">
                         <div class="sb-lbl">Total Drift</div>
@@ -682,8 +784,8 @@
                     </div>
                     <div class="sb ${dnaAl ? 'al' : ''}">
                         <div class="sb-lbl">Onset DNA${r.vocal_filter ? ' <span style="color:var(--brand);font-size:8px">(HPSS)</span>' : ''}</div>
-                        <div class="sb-val">${r.dna_match}% ${renderConfidence(dnaCI, '%')}</div>
-                        <div class="sb-sub">${dnaCI ? `CI: [${dnaCI[0]}, ${dnaCI[1]}]` : ''}</div>
+                        <div class="sb-val">${r.dna_match}% ${renderConfidence(dnaDispersion, '%')}</div>
+                        <div class="sb-sub">${dnaDispersion ? `Dispersion: [${dnaDispersion[0]}, ${dnaDispersion[1]}]` : ''}</div>
                     </div>
                     <div class="sb ${chromaAl ? 'wn' : ''}">
                         <div class="sb-lbl">Chroma DNA</div>
@@ -768,11 +870,11 @@
                                 <td>${x(r.comp_meta?.channel_label)}</td>
                             </tr>
                             <tr><td>Bit Depth / Format</td><td>${x(r.ref_meta?.bit_depth)}</td><td>${x(r.comp_meta?.bit_depth)}</td></tr>
-                            <tr><td>Integrated Loudness</td><td>—</td><td>${x(lv.lufs)}</td></tr>
+                            <tr><td>Integrated Loudness <span style="font-size:9px;color:var(--muted);display:block">ebur128 full-file</span></td><td>—</td><td>${x(lv.lufs)}</td></tr>
                             <tr><td>Sample Peak</td><td>—</td><td>${x(lv.peak)}</td></tr>
                             <tr>
                                 <td>True Peak (dBTP)
-                                    <span style="font-size:9px;color:var(--muted);font-family:var(--mono);display:block">EBU R128 / ITU-R BS.1770</span>
+                                    <span style="font-size:9px;color:var(--muted);font-family:var(--mono);display:block">ebur128 / EBU R128 / ITU-R BS.1770</span>
                                 </td>
                                 <td>—</td>
                                 <td>${x(lv.true_peak)}</td>
@@ -811,6 +913,16 @@
                     <div class="qc-list" id="qc-list-${i}">
                         ${renderQCChecks(qc)}
                     </div>
+                </div>
+                <div class="info-strip" style="margin-top:12px;">
+                    <div class="strip-title" style="color:var(--warn)">Experimental Checks</div>
+                    <div style="font-size:11px;color:var(--text-dim);line-height:1.6;">
+                        <strong>Hum/Buzz</strong> and <strong>Rumble</strong> checks sample only the first 10 seconds and use heuristic energy ratios (not noise-floor SNR). 
+                        <strong>DME Leakage</strong> requires an isolated dialogue stem for reliable detection — correlation with the full mix is inherently ambiguous. 
+                        These checks are <span style="color:var(--warn)">indicators only</span> and should not gate delivery without manual verification.
+                    </div>
+                </div>
+            </div>
                 </div>
             </div>
 
@@ -883,7 +995,7 @@
             <div class="tab-panel active" id="panel-levels-${domId}">
                 <div class="sg sg-5">
                     <div class="sb ${lufsAl ? 'wn' : ''}">
-                        <div class="sb-lbl">Integrated Loudness</div>
+                        <div class="sb-lbl">Integrated Loudness <span style="font-size:8px;color:var(--muted)">ebur128</span></div>
                         <div class="sb-val">${x(lv.lufs)}</div>
                     </div>
                     <div class="sb">
